@@ -12,6 +12,7 @@ import configparser
 import numpy as np
 import pandas as pd
 
+
 # configuration
 config = configparser.ConfigParser()
 config.read('keys.ini')
@@ -51,7 +52,7 @@ def io(dbPath, subset = None):
 	print(df.dtypes)
 	print(df.head(10))
 	for col in df:
-		print(col, type(df[col].iloc[3]))
+		print(col, type(df[col].iloc[2]))
 
 	return df
 
@@ -122,7 +123,7 @@ def get_uuids(df):
 
 
 def add_groups(contact_uuids, group):
-'''
+	'''
 		contact_uuids is a list of contact UUIDS to add.
 		group is a string, the name of the group.
 		Notice that RP has a 100 limit on number of contact_uuids to add to a group in each request.
@@ -153,14 +154,10 @@ def start_run(contact_uuids, flow):
 	'''
 	
 	# Load flows dataset
-	flows_df = self.io(flows)
+	flows_df = io(flows)
 
 	# Get flow uuid
 	flow_uuid = flows_df.loc[ (flows_df['name'] == flow), 'uuid'].values[0]
-
-	# Get uuids list
-	contact_uuids = list(df.loc[df['uuid'] != '', 'uuid'])
-	print(flow_uuid)
 
 	requests.post( 'https://api.rapidpro.io/api/v1/runs.json',
 		  headers = {'content-type': 'application/json',

@@ -9,39 +9,27 @@
 #on pd_master, invent data for same phones
 
 
-import incorporate as i
+import utils as i
+
+here = 'pTasks/rapidpro/incorporate/repo/'
 
 # test io
 # contacts dataset
-for db in [ 'contacts.csv',
-			'pd_master.csv',
-			'flows.csv' ]:
+for db in [ here + 'contacts.csv',
+			here + 'master_pd.csv',
+			here + 'flows.csv' ]:
 	df = i.io(db)
 	print(df.head())
 
 # test update_fields
-df =  i.io('pd_master.csv')
+df =  i.io(here + 'master_pd.csv')
 i.update_fields(df,
-				{ 'cl_cp_clCat': 'ext_cl_cp_clcat',
-                  'cl_longitude': 'ext_cl_longitude',
-                  'cl_latitude': 'ext_cl_latitude',
-                  'cl_nombre_clCat': 'ext_cl_nombre_clcat',
-                  'cl_treatmentArm': 'ext_cl_treatmentarm',
-                  'cl_inst_clCat': 'ext_cl_inst_clcat',
-                  'cl_ent_nombre_clCat': 'ext_cl_ent_nombre_clcat',
-                  'cl_mun_nombre_clCat': 'ext_cl_mun_nombre_clcat',
-                  'cl_loc_nombre_clCat': 'ext_cl_loc_nombre_clcat' })
-i.update_fields(df,
-				{ 'cl_cp_clCat': 'ext_cl_cp_clcat',
-                  'cl_longitude': 'ext_cl_longitude',
-                  'cl_latitude': 'ext_cl_latitude',
-                  'cl_nombre_clCat': 'ext_cl_nombre_clcat',
-                  'cl_treatmentArm': 'ext_cl_treatmentarm',
-                  'cl_inst_clCat': 'ext_cl_inst_clcat',
-                  'cl_ent_nombre_clCat': 'ext_cl_ent_nombre_clcat',
-                  'cl_mun_nombre_clCat': 'ext_cl_mun_nombre_clcat',
-                  'cl_loc_nombre_clCat': 'ext_cl_loc_nombre_clcat' },
-				'13/04/2016')
+				{ 'name_pd2': 'ext_name',
+				  'nameF_pd2': 'ext_namef',
+				  'nameM_pd2': 'ext_namem' ,
+				  'birthday_pd2': 'ext_birthday',
+				  'imei_pd2': 'pd2_imei' },
+				'14/04/2016')
 
 # test get_uuids
 df = i.get_uuids(df)
