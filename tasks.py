@@ -115,6 +115,26 @@ def vars_locality():
 		   }
 
 
+def vars_t2():
+	'''
+		returns varname-contactField association as a dict: {RP contactfield: dataset varname}
+		this is for T2 vars.
+	'''
+
+	return {
+				'phone_auxVo': 'ext_phone_auxvo',
+				'phone_auxVo_1': 'ext_phone_auxvo_1',
+				'phone_auxVo_2': 'ext_phone_auxvo_2',
+				'phone_auxVo_3': 'ext_phone_auxvo_3',
+				'phone_auxVo_4': 'ext_phone_auxvo_4',
+				'name_auxVo': 'ext_name_auxvo',
+				'name_auxVo_1': 'ext_name_auxvo_1',
+				'name_auxVo_2': 'ext_name_auxvo_2',
+				'name_auxVo_3': 'ext_name_auxvo_3',
+				'name_auxVo_4': 'ext_name_auxvo_4',
+		   }
+
+
 def vars_pd1():
 	'''
 		returns varname-contactField association as a dict: {RP contactfield: dataset varname}
@@ -250,10 +270,12 @@ def wrapper_pdMaster(date):
 		Executes all procedures using PD master dataset to incorporate contacts to RapidPro.
 		- Update contact fields with clinic, locality and individual information (PD{1, 2, 4})
 		- Group contacts according to treatment arm, add all contacts to ALL, NOT3
+		- Start T2 contacts in t2_chooseAux and t2_assign depending on whether bf-vocal association
+			is 1-to-many or 1-to-1.
 	'''
 	
 	# Assemble dataset
-	df = utils.io('pTasks/rapidpro/incorporate/repo/master_pd.csv')
+	df = utils.io(pdMaster)
 	df = utils.get_uuids(df)
 	df = get_locInfo(df)
 	df = get_clInfo(df)
@@ -261,15 +283,29 @@ def wrapper_pdMaster(date):
 	# Assemble variable-field correspondence
 	variables = vars_clinic()
 	for dic in [ vars_locality(),
+				 vars_t2(),
 				 vars_pd1(),
 				 vars_pd2(),
 				 vars_pd4() ]:
 		variables.update(dic)
 	
-	# Execute procedures
+	# Update and group
 	utils.update_fields(df, variables, date)
 	group_bf(df)
-	# TO-DO: add contacts in T2 to vocal group (phone num)
+
+	# Start t2_assign runs
+	uuids = list(df.loc[ df['phone_auxVo_2'] == '', 'uuid' ])
+	if len(uuids) > 0:
+		utils.start_run(uuids, 't2_assign')
+	else:
+		pass
+
+	# Start t2_chooseAux runs
+	uuids = list(df.loc[ df['phone_auxVo_2'] != '', 'uuid' ])
+	if len(uuids) > 0:
+		utils.start_run(uuids, 't2_chooseAux')
+	else:
+		pass
 
 	return None
 

@@ -52,7 +52,7 @@ def io(dbPath, subset = None):
 	print(df.dtypes)
 	print(df.head(10))
 	for col in df:
-		print(col, type(df[col].iloc[2]))
+		print(col, type(df[col].iloc[0]))
 
 	return df
 
