@@ -3,12 +3,15 @@
 # This is the main file.
 # It contains functions that miscellaneous tasks centered around the RapidPro
 # API with a focus on interaction with external datasets.
+# There is also a function to deal with input of Google spreadsheets
 
 import json
 import requests
 import csv
 import datetime
 import configparser
+import gspread
+from oauth2client.client import SignedJwtAssertionCredentials
 import numpy as np
 import pandas as pd
 
@@ -22,6 +25,8 @@ rp_api = config['rapidpro']['rp_api']
 root = config['paths']['root']
 contacts = config['paths']['contacts']
 flows = config['paths']['flows']
+## Google credentials
+gCredentials = config['google']['credentials']
 
 
 
@@ -55,6 +60,44 @@ def io(dbPath, subset = None):
 		print(col, type(df[col].iloc[0]))
 
 	return df
+
+
+def read_gspread(url):
+    '''
+        returns a pandas dataframe of the google spreadsheet specified in url.
+        The spreadsheet has to be shared with the corresponding Google service account
+    '''
+
+    # Construct credentials. You should have a .json file with credentials for GSheet get requests.
+    json_key = json.load(open(gCredentials))
+    scope = ['https://spreadsheets.google.com/feeds']
+    credentials = SignedJwtAssertionCredentials(json_key['client_email'],
+                                                json_key['private_key'].encode(),
+                                                scope)
+    # Sign in
+    gc = gspread.authorize(credentials)
+
+    # Open spreadsheet. The url leads to the dataset
+    book = gc.open_by_url(url)
+    sheet = book.sheet1
+
+    # Convert sheet contents to a list of dicts, then convert to pandas dataframe
+    df = pd.DataFrame(sheet.get_all_records())
+
+	# Fill in missing values with empty strings
+    df.fillna('', inplace = True)
+
+    # Stringify
+    for col in df:
+    	df[col] = df[col].astype(str)
+    
+    # Print dataset results for the user to make sure that everything goes smoothly.
+    print(df.dtypes)
+    print(df.head(10))
+    for col in df:
+    	print(col, type(df[col].iloc[0]))
+
+    return df
 
 
 def update_fields(df, variables, date=None):
@@ -122,7 +165,7 @@ def get_uuids(df):
 	return df
 
 
-def add_groups(contact_uuids, group):
+def add_groups(contact_uuids, group, action = 'add'):
 	'''
 		contact_uuids is a list of contact UUIDS to add.
 		group is a string, the name of the group.
@@ -142,9 +185,21 @@ def add_groups(contact_uuids, group):
 				headers = { 'content-type': 'application/json',
 							'Authorization': rp_api },
 				data = json.dumps( { 'contacts': l,
-									 'action': 'add',
+									 'action': action,
 									 'group': group } )
 					 )
+	return None
+
+
+def remove_groups(contact_uuids, group):
+	'''
+		contact_uuids is a list of contact UUIDS to add.
+		group is a string, the name of the group.
+		Notice that RP has a 100 limit on number of contact_uuids to add to a group in each request.
+	'''
+
+	add_groups(contact_uuids, group, action = 'remove')
+
 	return None
 
 
@@ -159,9 +214,17 @@ def start_run(contact_uuids, flow):
 	# Get flow uuid
 	flow_uuid = flows_df.loc[ (flows_df['name'] == flow), 'uuid'].values[0]
 
-	requests.post( 'https://api.rapidpro.io/api/v1/runs.json',
-		  headers = {'content-type': 'application/json',
-					 'Authorization': rp_api},
-		  data = json.dumps( { 'flow_uuid': flow_uuid,
-							   'contacts': contact_uuids,
-							   'restart_participants': True } ) )
+	batch = []
+	while len(contact_uuids) > 100:
+		batch.append(contact_uuids[:100])
+		contact_uuids = contact_uuids[100:]
+	batch.append(contact_uuids[:])
+
+	for l in batch:
+		print(len(l))
+		requests.post( 'https://api.rapidpro.io/api/v1/runs.json',
+			  headers = {'content-type': 'application/json',
+						 'Authorization': rp_api},
+			  data = json.dumps( { 'flow_uuid': flow_uuid,
+								   'contacts': l,
+								   'restart_participants': True } ) )

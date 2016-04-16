@@ -16,6 +16,8 @@ clinicDb = config['paths']['clinicDb']
 localityDb = config['paths']['localityDb']
 pdMaster = config['paths']['pdMaster']
 pd3Master = config['paths']['pd3Master']
+## GSheet url
+gSheet_url = config['google']['sheetCB']
 
 
 def get_clInfo(df):
@@ -276,6 +278,7 @@ def wrapper_pdMaster(date):
 	
 	# Assemble dataset
 	df = utils.io(pdMaster)
+	#df = utils.io('pTasks/rapidpro/incorporate/repo/test.csv')
 	df = utils.get_uuids(df)
 	df = get_locInfo(df)
 	df = get_clInfo(df)
@@ -290,22 +293,23 @@ def wrapper_pdMaster(date):
 		variables.update(dic)
 	
 	# Update and group
-	utils.update_fields(df, variables, date)
-	group_bf(df)
+	#utils.update_fields(df, variables, date)
+	#group_bf(df)
 
 	# Start t2_assign runs
 	uuids = list(df.loc[ df['phone_auxVo_2'] == '', 'uuid' ])
 	if len(uuids) > 0:
+		print(uuids)
 		utils.start_run(uuids, 't2_assign')
 	else:
 		pass
 
 	# Start t2_chooseAux runs
-	uuids = list(df.loc[ df['phone_auxVo_2'] != '', 'uuid' ])
-	if len(uuids) > 0:
-		utils.start_run(uuids, 't2_chooseAux')
-	else:
-		pass
+	#uuids = list(df.loc[ df['phone_auxVo_2'] != '', 'uuid' ])
+	#if len(uuids) > 0:
+	#	utils.start_run(uuids, 't2_chooseAux')
+	#else:
+	#	pass
 
 	return None
 
@@ -333,3 +337,72 @@ def wrapper_pd3(date):
 	# Execute procedures
 	utils.update_fields(df, variables, date)
 	group_auxvo(df)
+
+	# TO-DO update auxiliares and vocales isaux isvo _decl
+
+
+def wrapper_calls(date):
+	'''
+		Executes all procedures concerning the follow-up calls to bfs.
+		ROADMAP
+			1. import gsheet
+			2. keep only called contacts and set phone to correct format 'tel:+---"
+			3. drop if incorrecto == 1
+			4. Start contacts in miPrueba2 if flujo == "miPrueba2"
+			5. replace pd1_next_apptdate to missing if it equals "A punto"
+			6. Update contact fields (rp_name, rp_duedate, pd1_appt_nextdate, rp_deliverydate)
+			7. If !missing(estatus) then add to AUXVO
+			8. Generate var rp_isaux_decl. set it to 1 if estatus == 1
+			9. Generate var rp_isvocal_decl. set it to 1 if estatus == 2
+			10. update contact fields rp_isaux_decl and rp_isvocal_decl
+			11. If babyloss ==  1 then add to group Muerte, remove from group PREGNANT, remove from
+				group NOT3
+			12. Start runs for setApptDate.
+	'''
+	#1
+	df = utils.read_gspread(gSheet_url)
+	print(len(df.index))
+	#2
+	df = df.loc[df['ultima_modificacion'] != '', :]
+	print(len(df.index))
+	df['phone'] = 'tel:+' + df['phone']
+	#3
+	df = df.loc[df['incorrecto'] != '1', :]
+	#4
+	miPrueba2_uuids = list(df.loc[df['flujo'] == 'miPrueba2', 'contact'])
+	utils.start_run(miPrueba2_uuids, 'miPrueba2')
+	#5
+	df.loc[df['pd1_appt_nextdate'] == "A punto", 'pd1_appt_nextdate'] = ''
+	#6
+	utils.update_fields( df,
+				   		 { 'rp_name': 'rp_name',
+					 	   'pd1_duedate': 'pd1_duedate',
+					 	   'pd1_appt_nextdate': 'pd1_appt_nextdate',
+					 	   'rp_deliverydate': 'rp_deliverydate' },
+				   		 date )
+	#7
+	auxvo_uuids = list(df.loc[ (df['estatus'] == '1') |
+							   (df['estatus'] == '2'), 'contact' ])
+	utils.add_groups(auxvo_uuids, 'AUXVO')
+	#8, 9
+	for newvar in ['rp_isaux_decl',
+				   'rp_isvocal_decl']:
+		df[newvar] = ''
+	df.loc[ df['estatus'] == '1', 'rp_isaux_decl' ] = '1'
+	df.loc[ df['estatus'] == '2', 'rp_isvocal_decl' ] = '1'
+	#10
+	utils.update_fields( df,
+						 { 'rp_isaux_decl': 'rp_isaux_decl',
+						   'rp_isvocal_decl': 'rp_isvocal_decl' },
+						 date )
+	#11
+	perdida_uuids = list( df.loc[ df['perdida_bebe'] == '1', 'contact'] )
+	if len(perdida_uuids) > 0:
+		utils.add_groups(perdida_uuids, 'Muerte')
+		utils.remove_groups(perdida_uuids, 'PREGNANT')
+		utils.remove_groups(perdida_uuids, 'NOT3')
+	else:
+		pass
+	#12
+	setApptDate_uuids = list( df.loc[ df['contact'] != '', 'contact' ] )
+	utils.start_run(setApptDate_uuids, 'setApptDate')
