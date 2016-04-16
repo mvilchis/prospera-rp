@@ -34,6 +34,7 @@ gCredentials = config['google']['credentials']
 def io(dbPath, subset = None):
     '''
         Reads a .csv into dataframe, all string, np.nan set to ''.
+        subset is a list of varnames to import.
         The encoding is set to latin-1 since I assume the dataset comes from STATA 13 (or <13)
             handling. These STATA versions use this encoding. Unicode is supported only from
             STATA 14 onwards...
