@@ -63,10 +63,9 @@ def io(dbPath, subset=None):
     return df
 
 
-def read_gspread(url):
+def load_gspread(url):
     '''
-        returns a pandas dataframe of the google spreadsheet specified in url.
-        The spreadsheet has to be shared with the corresponding Google service account
+        returns the first instance of class gspread.Worksheet() in spreadsheet located in url.
     '''
 
     # Construct credentials. You should have a .json file with credentials for GSheet get requests.
@@ -80,7 +79,18 @@ def read_gspread(url):
 
     # Open spreadsheet. The url leads to the dataset
     book = gc.open_by_url(url)
-    sheet = book.sheet1
+
+    return book.sheet1
+
+
+def read_gspread(url):
+    '''
+        returns a pandas dataframe of the google spreadsheet specified in url.
+        The spreadsheet has to be shared with the corresponding Google service account
+    '''
+    
+    # Load gspread
+    sheet = load_gspread(url)
 
     # Convert sheet contents to a list of dicts, then convert to pandas dataframe
     df = pd.DataFrame(sheet.get_all_records())
@@ -99,6 +109,35 @@ def read_gspread(url):
         print(col, type(df[col].iloc[0]))
 
     return df
+
+
+def rowAppend_gspread(url, values=None):
+    '''
+        values is a list of values or a list of lists of values.
+        Inserts values in the first row of worksheet not yet populated with data.
+        Assumes that row is not populated if first column is not populated.
+    '''
+    
+    # Load gspread
+    sheet = load_gspread(url)
+    
+    # Get index of first non-populated row using recursion (beautiful!)
+    def sheet_len(ws, index=1):
+        if ws.cell(index, 1).value == '':
+            return 1
+        else:
+            return sheet_len(ws, index+1) + 1
+    
+    # Insert rows specified in values
+    last = sheet_len(sheet)
+    if type(values[0]) == list:
+        for vals in values:
+            sheet.insert_row(vals, index=last)
+            last += 1
+    else:
+        sheet.insert_row(values, index=last)
+
+    return None
 
 
 def update_fields(df, variables, date=None):
