@@ -12,6 +12,7 @@ import utils
 config = configparser.ConfigParser()
 config.read('keys.ini')
 ## Paths
+root = config['paths']['root']
 clinicDb = config['paths']['clinicDb']
 localityDb = config['paths']['localityDb']
 pdMaster = config['paths']['pdMaster']
@@ -27,7 +28,7 @@ def get_clInfo(df):
     '''
 
     # I/O: clinic master
-    df_cl = utils.io(clinicDb, 
+    df_cl = utils.io(root + clinicDb, 
                      [ 'clues',
                        'cl_treatmentArm',
                        'cl_jur_nombre_clCat',
@@ -58,7 +59,7 @@ def get_locInfo(df):
     '''
 
     # I/O: locality master
-    df_loc = utils.io(localityDb, 
+    df_loc = utils.io(root + localityDb, 
                     [ 'id',
                       'loc_latitud_geo',
                       'loc_longitud_geo',
@@ -277,7 +278,7 @@ def wrapper_pdMaster(date):
     '''
     
     # Assemble dataset
-    df = utils.io(pdMaster)
+    df = utils.io(root + pdMaster)
     #df = utils.io('pTasks/rapidpro/incorporate/repo/test.csv')
     df = utils.get_uuids(df)
     df = get_locInfo(df)
@@ -323,7 +324,7 @@ def wrapper_pd3(date=None):
     '''
     
     # Assemble dataset
-    df = utils.io(pd3Master)
+    df = utils.io(root + pd3Master)
     df = utils.get_uuids(df)
     df = get_locInfo(df)
     df = get_clInfo(df)

@@ -31,19 +31,19 @@ gCredentials = config['google']['credentials']
 
 
 
-def io(dbPath, subset = None):
+def io(dbPath, subset=None):
     '''
         Reads a .csv into dataframe, all string, np.nan set to ''.
         subset is a list of varnames to import.
         The encoding is set to latin-1 since I assume the dataset comes from STATA 13 (or <13)
             handling. These STATA versions use this encoding. Unicode is supported only from
             STATA 14 onwards...
-        dbPath is the relative path to the dataset (starting at root, see beginning of file.)
+        dbPath is the full path to the dataset (starting at root, see beginning of file.)
         It's important to get everything as string: some integer cols are otherwise assigned
             a float type and when converted to string are displayed as floats...
     '''
 
-    df = pd.read_csv(root + dbPath,
+    df = pd.read_csv(dbPath,
                      encoding= 'latin-1',
                      dtype = 'str',
                      usecols = subset)
@@ -153,7 +153,7 @@ def get_uuids(df):
     '''
 
     # Call contacts with io function
-    contact_uuids = io(contacts, ['urns_0', 'uuid'])
+    contact_uuids = io(root + contacts, ['urns_0', 'uuid'])
     contact_uuids = contact_uuids.rename( columns = {'urns_0': 'phone'} )
 
     df = df.merge(contact_uuids, how = 'left', on = 'phone')
@@ -207,7 +207,7 @@ def start_run(contact_uuids, flow):
     '''
     
     # Load flows dataset
-    flows_df = io(flows)
+    flows_df = io(root + flows)
 
     # Get flow uuid
     flow_uuid = flows_df.loc[ (flows_df['name'] == flow), 'uuid'].values[0]
