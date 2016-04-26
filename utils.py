@@ -111,7 +111,7 @@ def read_gspread(url):
     return df
 
 
-def rowAppend_gspread(url, values=None):
+def rowAppend_gspread(url, values):
     '''
         values is a list of values or a list of lists of values.
         Inserts values in the first row of worksheet not yet populated with data.
