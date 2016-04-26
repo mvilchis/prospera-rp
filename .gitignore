@@ -1,4 +1,4 @@
-keys.ini
-__pycache__
-gsheetIO.txt
-getGSheet-8b845085ca3e.json
+post/keys.ini
+__pycache__/
+post/gsheetIO.txt
+post/getGSheet-8b845085ca3e.json
