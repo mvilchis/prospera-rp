@@ -1,4 +1,9 @@
-post/keys.ini
 __pycache__/
-post/gsheetIO.txt
+download/old
+download/__pycache__
+download/keys.ini
+download/sample_data_runs.json
 post/getGSheet-8b845085ca3e.json
+post/gsheetIO.txt
+post/keys.ini
+*.swp

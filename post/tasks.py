@@ -28,7 +28,7 @@ def get_clInfo(df):
     '''
 
     # I/O: clinic master
-    df_cl = utils.io(root + clinicDb, 
+    df_cl = utils.io(root + clinicDb,
                      [ 'clues',
                        'cl_treatmentArm',
                        'cl_jur_nombre_clCat',
@@ -59,7 +59,7 @@ def get_locInfo(df):
     '''
 
     # I/O: locality master
-    df_loc = utils.io(root + localityDb, 
+    df_loc = utils.io(root + localityDb,
                     [ 'id',
                       'loc_latitud_geo',
                       'loc_longitud_geo',
@@ -83,7 +83,7 @@ def vars_clinic():
         returns varname-contactField association as a dict: {RP contactfield: dataset varname}
         this is for clinic-level vars.
     '''
-    
+
     return {
                 'clues': 'ext_clues',
                 'cl_jur_nombre_clCat': 'ext_cl_jur_nombre_clcat',
@@ -106,7 +106,7 @@ def vars_locality():
         returns varname-contactField association as a dict: {RP contactfield: dataset varname}
         this is for locality-level vars.
     '''
-    
+
     return {
                 'loc_latitud_geo': 'ext_loc_latitud_geo',
                 'loc_longitud_geo': 'ext_loc_longitud_geo',
@@ -172,7 +172,7 @@ def vars_pd2():
         returns varname-contactField association as a dict: {RP contactfield: dataset varname}
         this is for PD2 vars.
     '''
-    
+
     return {
                 'name_pd2': 'ext_name',
                 'nameF_pd2': 'ext_namef',
@@ -187,7 +187,7 @@ def vars_pd3():
         returns varname-contactField association as a dict: {RP contactfield: dataset varname}
         this is for PD3 vars.
     '''
-    
+
     return {
                 'name_pd3': 'ext_name',
                 'nameF_pd3': 'ext_namef',
@@ -218,7 +218,7 @@ def vars_pd4():
         returns varname-contactField association as a dict: {RP contactfield: dataset varname}
         this is for PD4 vars.
     '''
-    
+
     return { 'promise_pd4': 'pd4_promise' }
 
 
@@ -226,7 +226,7 @@ def group_bf(df):
     '''
         Adds all contacts to ALL, treatment arm groups and NOT3 (for T1 and T2)
     '''
-    
+
     # Add everyone to group ALL
     uuids = list(df.loc[df['uuid'] != '', 'uuid'])
     utils.add_groups(uuids, 'ALL')
@@ -256,11 +256,11 @@ def group_auxvo(df_pd3):
         - NOT3
         - T1 - T3
     '''
-    
+
     uuids = list(df_pd3.loc[:, 'uuid'])
     uuids_clean = [uuid for uuid in uuids if len(uuid) > 0]
     print(uuids_clean)
-    
+
     utils.add_groups(uuids_clean, 'ALL')
     utils.add_groups(uuids_clean, 'AUXVO')
 
@@ -276,14 +276,14 @@ def wrapper_pdMaster(date):
         - Start T2 contacts in t2_chooseAux and t2_assign depending on whether bf-vocal association
             is 1-to-many or 1-to-1.
     '''
-    
+
     # Assemble dataset
     df = utils.io(root + pdMaster)
     #df = utils.io('pTasks/rapidpro/incorporate/repo/test.csv')
     df = utils.get_uuids(df)
     df = get_locInfo(df)
     df = get_clInfo(df)
-    
+
     # Assemble variable-field correspondence
     variables = vars_clinic()
     for dic in [ vars_locality(),
@@ -292,7 +292,7 @@ def wrapper_pdMaster(date):
                  vars_pd2(),
                  vars_pd4() ]:
         variables.update(dic)
-    
+
     # Update and group
     #utils.update_fields(df, variables, date)
     #group_bf(df)
@@ -322,23 +322,23 @@ def wrapper_pd3(date=None):
         - Update contact fields with clinic, locality and individual information (PD3)
         - Group contacts according to treatment arm, add all contacts to ALL, NOT3
     '''
-    
+
     # Assemble dataset
     df = utils.io(root + pd3Master)
     df = utils.get_uuids(df)
     df = get_locInfo(df)
     df = get_clInfo(df)
-    
+
     # Assemble variable-field correspondence
     variables = vars_clinic()
     for dic in [ vars_locality(),
                 vars_pd3() ]:
        variables.update(dic)
-    
+
     # Execute procedures
     utils.update_fields(df, variables, date)
     group_auxvo(df)
-    
+
     # update auxiliares and vocales isaux isvo _decl
     df['rp_isaux_decl'] = '1'
     df['rp_isvocal_decl'] = '1'
@@ -414,4 +414,4 @@ def wrapper_calls(date=None):
         pass
     #12
     setApptDate_uuids = list( df.loc[ df['contact'] != '', 'contact' ] )
-    utils.start_run(setApptDate_uuids, 'setApptDate')
+
