@@ -33,7 +33,7 @@ raw_groups = config['paths']['raw_groups']
 ## Rapidpro
 rp_api = config['rapidpro']['rp_api']
 
-
+mystr = "HAHAHAHAJAJAJJAJUAJUAJUA"
 
 
 class Get(object):
