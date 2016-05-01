@@ -50,9 +50,10 @@ def io(dbPath, subset=None):
 
     df.fillna('', inplace = True)
 
-    # Stringify
+    # Stringify and strip left and right whitespace
     for col in df:
         df[col] = df[col].astype(str)
+        df[col] = df[col].str.strip()
 
     # Print dataset results for the user to make sure that everything goes smoothly.
     print(df.dtypes)
@@ -144,24 +145,34 @@ def update_fields(df, variables, date=None):
     '''
         Runs post requests to update contact fields associated in variables.
         Missing data are ignored and requests are executed with all available information.
-        variables is a dict that contains the correspondence of variable names in the current
-        dataset (df) and RapidPro contact fields. e.g.
+        variables is a list or a dict that contains the correspondence of variable names
+        in the current dataset (df) and RapidPro contact fields. e.g.
             {
                 'var1': 'contact_field1',
                 'var2': 'contact_field2'
             }
-    date is today's date (to keep track of when things happened in RP) in format DD/MM/YYYYY
+        If it is a list, then varnames and contact fields must match.
+        date is today's date (to keep track of when things happened in RP) in format DD/MM/YYYYY
     '''
 
     for row in range(len(df.index)):
         # Assemble contact fields to update
         to_update = {}
 
-        for field in variables.keys():
-            if df[field].iloc[row] != '' :
-                to_update[variables[field]] = df[field].iloc[row]
-            else:
-                pass
+        if type(variables) == dict:
+            for field in variables.keys():
+                if df[field].iloc[row] != '' :
+                    to_update[variables[field]] = df[field].iloc[row]
+                else:
+                    pass
+
+        elif type(variables) == list:
+            for field in variables:
+                if df[field].iloc[row] != '' :
+                    to_update[field] = df[field].iloc[row]
+                else:
+                    pass
+
 
         if to_update != {}:
             if date != None:
