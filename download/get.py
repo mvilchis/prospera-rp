@@ -23,6 +23,7 @@ import copy
 config = configparser.ConfigParser()
 config.read('keys.ini')
 ## Paths
+processed_runs = config['paths']['processed_runs']
 root = config['paths']['root']
 raw_flows = config['paths']['raw_flows']
 raw_runs = config['paths']['raw_runs']
@@ -33,7 +34,6 @@ raw_groups = config['paths']['raw_groups']
 ## Rapidpro
 rp_api = config['rapidpro']['rp_api']
 
-mystr = "HAHAHAHAJAJAJJAJUAJUAJUA"
 
 
 class Get(object):
@@ -179,7 +179,6 @@ class Get(object):
 
         # Narrow on row
         rows = df.loc[df['uuid']==uuid, 'name']
-        print(rows)
 
         # Policy: if there are many rows, return first value
         return rows.iloc[0]
@@ -286,7 +285,7 @@ class GetRuns(Get):
         return run_result
 
 
-    def select_data_test():
+    def select_data_test(self):
         pp = pprint.PrettyPrinter()
         inst = GetRuns()
         json = inst.request_get()[:20]
@@ -320,7 +319,9 @@ class ProcessRuns(Get):
                           'text',
                           'value']:
                 if type(step[field]) == str:
-                    step[field] = step[field].replace('\n', '')
+                    # TODO: replace enter keys (u"\u23CE") and see if it solves 2016-01-30T19:14:47.496Z
+                    for el in ['\n', u'\u23CE']:
+                        step[field] = step[field].replace('el', '')
 
         # Sort steps chronologically
         run['steps_selected'] = sorted(run['steps_selected'],
@@ -334,7 +335,7 @@ class ProcessRuns(Get):
 
         # TODO: check this function works
         # Retrieve flow name
-        #run['flow_name'] = self.name_flow(run['flow_uuid'])
+        run['flow_name'] = self.name_flow(run['flow_uuid'])
 
         return run
 
@@ -381,7 +382,7 @@ class ProcessRuns(Get):
             Adds number of mistakes (i.e. repetition of contiguous nodes in a
             chronologically ordered sequence of steps minus 1).
         '''
-        
+
         # Start by adding mistakes key to all run
         for step in run['steps_selected']:
             step['mistakes'] = 0
@@ -626,6 +627,53 @@ class ExportRuns(Get):
             print(df[col])
 
 
+    def export_runs(self, parameters = {}):
+        '''
+            (i)downloads the contacts,
+            (ii)flattens and assembles the dictionaries,
+            (iii)sends data to DataFrame
+            (iv)removes a useless contact field (with varname so long that STATA
+                cannot handle
+            (v)saves DataFrame to a .csv
+        '''
+
+        df = self.append_df(parameters=parameters)
+        df.to_csv(root + raw_runs + 'runs.csv', index=False, encoding='utf-8')
+
+
+    def append_runs(self, parameters = {}):
+        '''
+            Appends new runs data to runs information.
+            Gets last modified date and runs request
+        '''
+
+        # Get date of last run
+        df = pd.read_csv(root + raw_runs + 'runs.csv')
+        df = df.sort_values('modified_on', na_position='first')
+        last_date = df['modified_on'].iloc[-1]
+        
+        # Get observations after this date
+        new_df = self.append_df({'after':last_date})
+        new_df = new_df.sort_values('modified_on', na_position='first')
+
+        # Blow first entry (rapidpro's 'after' is inclusive)
+        try:
+            new_df = new_df.iloc[1:]
+        except IndexError:
+            print('No new information available')
+            return None
+
+        # Append to main df
+        df = df.append(new_df, ignore_index=True)
+
+        # Export
+        df.to_csv(root + raw_runs + 'runs_new.csv', index=False, encoding='utf-8')
+        
+        # Check things went well
+        size = len(new_df.index)
+        print(df['modified_on'].tail(n=size+5))
+
+
     def export_flow(self, flow, parameters = {}):
         '''
             type(flow) = str
@@ -645,121 +693,12 @@ class ExportRuns(Get):
         parameters.update(params)
 
         # Assemble dataframe
-        appendedDf = self.append_df(parameters=parameters)
-        
-        print(appendedDf.loc[appendedDf['arrived_on'].isnull(), :])
+        appendedDf = self.append_df(parameters)
 
         # Export as .csv
         appendedDf.to_csv(root + raw_runs + flow + '.csv',
                           index = False,
                           encoding = 'utf-8')
-
-
-
-
-def export_runs():
-    # TODO: Update this list
-    inst = ExportRuns()
-
-    l = ['auxAlta',
-         'concerns1',
-         'concerns10',
-         'concerns11',
-         'concerns12',
-         'concerns13',
-         'concerns14',
-         'concerns15',
-         'concerns16',
-         'concerns17',
-         'concerns18',
-         'concerns2',
-         'concerns3',
-         'concerns4',
-         'concerns5',
-         'concerns6',
-         'concerns7',
-         'concerns8',
-         'concerns9',
-         'followUp_fdv',
-         'getData_apptDate',
-         'getData_dueDate',
-         'getData_relayer',
-         'incentivesCollect1',
-         'incentivesCollect2',
-         'incentivesCollect3',
-         'incentivesCollect4',
-         'incentivesCollect5',
-         'incentivesCollectF1',
-         'incentivesCollectF2',
-         'incentivesInform',
-         'incentives_date1',
-         'incentives_date2',
-         'miAlerta',
-         'miAlerta_followUp',
-         'miAlta_apptDate',
-         'miAlta_dueDate',
-         'miAlta_init',
-         'miAlta_init',
-         'miAlta_selfAppt_old',
-         'miAlta_selfWshp',
-         'miAlta_update',
-         'miAlta_whPr',
-         'miAlta_whPr',
-         'miCambio',
-         'miPrueba2',
-         'miPrueba_cat',
-         'miPrueba_fechas',
-         'miPrueba_followUp',
-         'miPrueba_num',
-         'miPrueba_siNo',
-         'miPrueba_text',
-         'pregnant_puerperium',
-         'prevent1',
-         'prevent10',
-         'prevent11',
-         'prevent12',
-         'prevent13',
-         'prevent14',
-         'prevent15',
-         'prevent2',
-         'prevent3',
-         'prevent4',
-         'prevent5',
-         'prevent6',
-         'prevent7',
-         'prevent8',
-         'prevent9',
-         'reminders1.1',
-         'reminders1.2',
-         'reminders1.3',
-         'reminders2.1',
-         'reminders2.2',
-         'reminders2.3',
-         'reminders3.1',
-         'reminders3.2',
-         'reminders3.3',
-         'reminders4.1',
-         'reminders4.2',
-         'reminders4.3',
-         'reminders5.1',
-         'reminders5.2',
-         'reminders5.3',
-         'remindersExtra1',
-         'remindersExtra2',
-         'remindersExtra3',
-         'remindersFinal1',
-         'remindersFinal2',
-         'remindersFinal3',
-         'prePiloto_planning1',
-         'prePiloto_planning2',
-         'prePiloto_planning3',
-         'prePiloto_planning4',
-         'prePiloto_planning5',
-         'prePiloto_planning6',
-         'prePiloto_planning7' ]
-
-    for flow in l:
-        inst.export_flow(flow)
 
 
 
