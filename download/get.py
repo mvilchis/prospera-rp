@@ -204,26 +204,10 @@ class GetRuns(Get):
         return r.json()['results']
 
 
-    def select_data(self, run, step_fields = ['arrived_on', 'left_on']):
+
+    def select_data(self, run):
         '''
-            Run-level function (a run is an entry in self.request())
-            Returns a dict with selected information from run.
-            This dict contains all run-level information, i.e.
-                completed
-                contact
-                created_on
-                expired_on
-                expires_on
-                flow
-                flow_uuid
-                modified_on
-                run
-            and every entry in 'values', which is a list of node-level info.
-            All entries in 'values' are also added with step_fields info from
-            entries in steps.
-            step_fields is a list of strings (data fields)
-            Additionally, if the run was not completed, the dict contains
-            the last step recorded with 'type' 'R'.
+            add field 'origin' to steps and values
         '''
 
         run_result = {}
@@ -236,51 +220,33 @@ class GetRuns(Get):
         for key in keys:
             run_result[key] = run[key]
 
-        # Add every element in 'values' to new field: 'steps_selected'
-        run_result['steps_selected'] = copy.deepcopy(run['values'])
+        # Add field 'origin' to steps and values
+        for entry in run['steps']:
+            entry['origin'] = 'steps'
+        for entry in run['values']:
+            entry['origin'] = 'values'
 
-        for step_values in run_result['steps_selected']:
+        run_result['entries'] = []
+
+        # Add all values entries with arrived_on and left_on info from steps
+        for step_values in run['values']:
             for step_steps in run['steps']:
-                if step_values['time'] == step_steps['left_on']:
-                    for field in step_fields:
+                if step_steps['left_on'] == step_values['time']:
+                    for field in ['arrived_on', 'left_on']:
                         step_values[field] = step_steps[field]
-                else:
-                    pass
+                    run_result['entries'].append(step_values)
+                    # Remove steps entry
+                    run['steps'].remove(step_steps)
+                    break
 
-        # Append last of steps to steps_selected if type 'R' AND not already in steps_selected.
-        ## Get sorted list of times when contact left step in values
-        values_times = [ entry['time'] for entry in run['values'] ]
-        values_times = sorted(values_times)
-
-        ## Trick to catch flows with no contact reaction
-        if values_times == []:
-            values_times = ['']
-
-        ## Sort 'steps' by 'arrived_on'
-        run['steps'] = sorted(run['steps'], key=itemgetter('arrived_on'))
-
-        ## Get last entry with type R. If there is no such entry, exit
-        index = -1
-        try:
-            while run['steps'][index]['type'] != 'R':
-                index -= 1
-        except IndexError:
-            return run_result
-
-        last = run['steps'][index]
-
-        ## If last entry in steps occurred after last entry in values, append
-        if (last['arrived_on'] > values_times[-1]):
-            run_result['steps_selected'].append(
-                {'category': None,
-                 'label': None,
-                 'rule_value': None,
-                 'text': None,
-                 'value': None})
-            run_result['steps_selected'][-1]['node'] = last['node']
-            run_result['steps_selected'][-1]['time'] = last['arrived_on']
-            run_result['steps_selected'][-1]['arrived_on'] = last['arrived_on']
-            run_result['steps_selected'][-1]['left_on'] = last['left_on']
+        # Add all remaining steps
+        for step_steps in run['steps']:
+            for field in [ 'category',
+                           'label',
+                           'rule_value',
+                           'time' ]:
+                step_steps[field] = None
+            run_result['entries'].append(step_steps)
 
         return run_result
 
@@ -313,31 +279,39 @@ class ProcessRuns(Get):
         '''
 
         # Remove ugly chars
-        for i in range(len(run['steps_selected'])):
-            step = run['steps_selected'][i]
+        for i in range(len(run['entries'])):
+            step = run['entries'][i]
             for field in ['rule_value',
                           'text',
                           'value']:
                 if type(step[field]) == str:
-                    # TODO: replace enter keys (u"\u23CE") and see if it solves 2016-01-30T19:14:47.496Z
                     for el in ['\n', u'\u23CE']:
                         step[field] = step[field].replace('el', '')
 
         # Sort steps chronologically
-        run['steps_selected'] = sorted(run['steps_selected'],
+        run['entries'] = sorted(run['entries'],
                                   key=itemgetter('arrived_on'))
 
         # Add numbering
         i = 1
-        for dic in run['steps_selected']:
+        for dic in run['entries']:
             dic['order'] = i
             i = i+1
 
-        # TODO: check this function works
         # Retrieve flow name
         run['flow_name'] = self.name_flow(run['flow_uuid'])
 
         return run
+
+
+    def tweaks_test(self):
+        getter = GetRuns()
+        pp = pprint.PrettyPrinter()
+        json = getter.request_get()[:20]
+        pp.pprint(json)
+        print("--------------------------------------------------------------------------------")
+        for run in json:
+            pp.pprint(self.tweaks(getter.select_data(run)))
 
 
     def get_repetitions(self, steps, index):
@@ -384,21 +358,21 @@ class ProcessRuns(Get):
         '''
 
         # Start by adding mistakes key to all run
-        for step in run['steps_selected']:
+        for step in run['entries']:
             step['mistakes'] = 0
 
         # Now fill in
         current = 0
 
         while True:
-            mistakes = self.get_repetitions(run['steps_selected'], current)
+            mistakes = self.get_repetitions(run['entries'], current)
 
             for index in [ x+current for x in range(mistakes+1) ]:
-                run['steps_selected'][index]['mistakes'] = mistakes
+                run['entries'][index]['mistakes'] = mistakes
 
             current = current + mistakes + 1
 
-            if current > len(run['steps_selected']) - 1:
+            if current > len(run['entries']) - 1:
                 break
 
         return run
@@ -414,27 +388,32 @@ class ProcessRuns(Get):
             pp.pprint(self.add_mistakes(self.tweaks(getter.select_data(run))))
 
 
+    def get_etime(self, run, index=-1):
+        try:
+            etime = run['entries'][index]['left_on'][:19]
+            return etime
+        except TypeError:
+            return self.get_etime(run, index-1)
+
+
     def run_duration(self, run):
         '''
             Adds the total seconds elapsed between the start and end of a
             contact's interaction during a run.
         '''
 
-        if  len(run['steps_selected']) < 2:
+        if  len(run['entries']) < 2:
             run['run_time'] = None
 
         else:
-            run['steps_selected'] = sorted(run['steps_selected'],
+            run['entries'] = sorted(run['entries'],
                                           key=itemgetter('arrived_on'))
 
             # Start
-            stime = run['steps_selected'][0]['arrived_on'][:19]
+            stime = run['entries'][0]['arrived_on'][:19]
             stime = datetime.strptime(stime, '%Y-%m-%dT%H:%M:%S')
             # End
-            try:
-                etime = run['steps_selected'][-1]['left_on'][:19]
-            except TypeError:
-                etime = run['steps_selected'][-2]['left_on'][:19]
+            etime = self.get_etime(run)
             etime = datetime.strptime(etime, '%Y-%m-%dT%H:%M:%S')
 
             finish_time = etime-stime
@@ -459,7 +438,7 @@ class ProcessRuns(Get):
             a step where contact interaction is required.
         '''
 
-        for step in run['steps_selected']:
+        for step in run['entries']:
 
             if step['left_on'] is None:
                 step['step_time'] = None
@@ -497,7 +476,7 @@ class ProcessRuns(Get):
                 - Text ---------- t
         '''
 
-        for step in run['steps_selected']:
+        for step in run['entries']:
 
             step['response_type'] = None
 
@@ -518,7 +497,7 @@ class ProcessRuns(Get):
         return run
 
 
-    def step_duration_test(self):
+    def response_type_test(self):
         getter = GetRuns()
         pp = pprint.PrettyPrinter()
         json = getter.request_get()[:20]
@@ -544,7 +523,7 @@ class ExportRuns(Get):
         result = []
 
         # Flatten 'category' if it is assigned a dict
-        for step in run['steps_selected']:
+        for step in run['entries']:
             if type(step['category']) == dict:
                 for key in step['category'].keys():
                     step['category'+'_'+key] = step['category'][key]
@@ -555,15 +534,14 @@ class ExportRuns(Get):
 
         # Create list of dictionaries at the step level
         run_level = copy.deepcopy(run)
-        del run_level['steps_selected']
+        del run_level['entries']
 
-        if len(run['steps_selected']) > 0:
-            for step in run['steps_selected']:
+        if len(run['entries']) > 0:
+            for step in run['entries']:
                 step.update(run_level)
                 result.append(step)
 
-
-        # No 'steps_fdv' imply no type 'R' step --> append_step function
+        # No 'entries' imply no type 'R' step --> append_step function
         else:
             pass
 
@@ -609,10 +587,9 @@ class ExportRuns(Get):
         flat = []
         for run in runs:
             flat.extend(self.flatten_run(run))
-        ## Into dataframe
-        df = pd.DataFrame.from_records(flat)
 
-        return df
+        ## Into dataframe
+        return pd.DataFrame.from_records(flat)
 
 
     def to_df_test(self):
@@ -625,6 +602,7 @@ class ExportRuns(Get):
         df = self.to_df()
         for col in df:
             print(df[col])
+        df.to_csv('/home/qfd/test.csv', index=False)
 
 
     def export_runs(self, parameters = {}):
@@ -651,14 +629,17 @@ class ExportRuns(Get):
         df = pd.read_csv(root + raw_runs + 'runs.csv')
         df = df.sort_values('modified_on', na_position='first')
         last_date = df['modified_on'].iloc[-1]
-        
+
         # Get observations after this date
         new_df = self.append_df({'after':last_date})
-        new_df = new_df.sort_values('modified_on', na_position='first')
+        new_df = new_df.sort_values('modified_on')
 
-        # Blow first entry (rapidpro's 'after' is inclusive)
+        # Blow first run (rapidpro's 'after' is inclusive)
         try:
-            new_df = new_df.iloc[1:]
+            index = 0
+            while new_df['modified_on'].iloc[index] == last_date:
+                index += 1
+            new_df = new_df.iloc[index:]
         except IndexError:
             print('No new information available')
             return None
@@ -667,11 +648,11 @@ class ExportRuns(Get):
         df = df.append(new_df, ignore_index=True)
 
         # Export
-        df.to_csv(root + raw_runs + 'runs_new.csv', index=False, encoding='utf-8')
-        
+        df.to_csv(root + raw_runs + 'runs.csv', index=False, encoding='utf-8')
+
         # Check things went well
-        size = len(new_df.index)
-        print(df['modified_on'].tail(n=size+5))
+        #size = len(new_df.index)
+        #print(df['modified_on'].tail(n=size+5))
 
 
     def export_flow(self, flow, parameters = {}):
