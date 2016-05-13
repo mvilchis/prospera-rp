@@ -21,16 +21,16 @@ import copy
 
 #configuration
 config = configparser.ConfigParser()
-config.read('keys.ini')
+## file keys.ini should be in repository root
+config.read(os.path.dirname(os.path.dirname(__file__)) + '/keys.ini')
 ## Paths
-processed_runs = config['paths']['processed_runs']
 root = config['paths']['root']
-raw_flows = config['paths']['raw_flows']
-raw_runs = config['paths']['raw_runs']
 raw_contacts = config['paths']['raw_contacts']
-raw_messages = config['paths']['raw_messages']
 raw_fields = config['paths']['raw_fields']
+raw_flows = config['paths']['raw_flows']
 raw_groups = config['paths']['raw_groups']
+raw_messages = config['paths']['raw_messages']
+raw_runs = config['paths']['raw_runs']
 ## Rapidpro
 rp_api = config['rapidpro']['rp_api']
 
@@ -702,7 +702,7 @@ class GetContacts(Get):
         return r.json()['results']
 
 
-    def export_contacts(self, parameters={}):
+    def export_contacts(self, parameters={}, path=root + raw_contacts):
         '''
             (i)downloads the contacts,
             (ii)flattens and assembles the dictionaries,
@@ -710,10 +710,11 @@ class GetContacts(Get):
             (iv)removes a useless contact field (with varname so long that STATA
                 cannot handle
             (v)saves DataFrame to a .csv
+            path is the full path to new .csv, string
         '''
 
         df = self.append_df(parameters)
-        df.to_csv(root + raw_contacts, encoding='utf-8', index = False)
+        df.to_csv(path, encoding='utf-8', index = False)
 
 
 
@@ -845,9 +846,6 @@ class GetMessages(Get):
             for char in ['"', "'", ";", ",", '\u2013', '\u2026', '\r\n']:
                         dic['text'] = dic['text'].replace(char, '')
             flatDicts.append(self.flatten_dict(dic))
-
-        pp = pprint.PrettyPrinter()
-        pp.pprint(raw)
 
         return pd.DataFrame.from_records(flatDicts)
 
