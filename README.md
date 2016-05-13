@@ -83,3 +83,5 @@ then the following would execute the same procedure:
      In [1]: run utils.py
      In [2]: df = read_gspread('https://docs.google.com/spreadsheets/d/41234kllkerbwhlerkn8/edit#gid=0')
      In [3]: update_fields(df, {'age': 'rp_age'})
+
+You ought to use OAuth2 for authorization to read the Google Spreadsheet (see http://gspread.readthedocs.io/en/latest/oauth2.html for more information). 
