@@ -25,12 +25,12 @@ config.read('keys.ini')
 ## Paths
 #processed_runs = config['paths']['processed_runs']
 root = config['paths']['root']
-raw_flows = config['paths']['flows']
-raw_runs = config['paths']['runs']
-raw_contacts = config['paths']['contacts']
-raw_messages = config['paths']['messages']
-raw_fields = config['paths']['fields']
-raw_groups = config['paths']['groups']
+raw_flows = config['paths']['raw_flows']
+raw_runs = config['paths']['raw_runs']
+raw_contacts = config['paths']['raw_contacts']
+raw_messages = config['paths']['raw_messages']
+raw_fields = config['paths']['raw_fields']
+raw_groups = config['paths']['raw_groups']
 ## Rapidpro
 rp_api = config['rapidpro']['rp_api']
 
