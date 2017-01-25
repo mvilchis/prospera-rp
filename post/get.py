@@ -635,7 +635,7 @@ class ExportRuns(Get):
                                         headers = {'Authorization': rp_api},
                                         params = {'page':1})
 
-        df = self.append_df(parameters=parameters, pages =300)
+        df = self.append_df(parameters=parameters)
         df.to_csv(root + raw_runs + 'runs.csv', index=False, encoding='utf-8')
 
 
