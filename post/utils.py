@@ -18,16 +18,15 @@ import pandas as pd
 
 # configuration
 config = configparser.ConfigParser()
-## file keys.ini should be in repository root
-config.read(os.path.dirname(os.path.dirname(__file__)) + '/keys.ini')
-## Google credentials
-gCredentials = config['google']['credentials']
+config.read('keys.ini')
+## RapidPro API token
+rp_api = config['rapidpro']['rp_api']
 ## Paths
 root = config['paths']['root']
-raw_contacts = config['paths']['raw_contacts']
-raw_flows = config['paths']['raw_flows']
-## RapidPro
-rp_api = config['rapidpro']['rp_api']
+contacts = config['paths']['contacts']
+flows = config['paths']['flows']
+## Google credentials
+gCredentials = config['google']['credentials']
 
 
 
@@ -57,10 +56,10 @@ def io(dbPath, subset=None):
         df[col] = df[col].str.strip()
 
     # Print dataset results for the user to make sure that everything goes smoothly.
-    print(df.dtypes)
-    print(df.head(10))
-    for col in df:
-        print(col, type(df[col].iloc[0]))
+    #print(df.dtypes)
+    #print(df.head(10))
+    #for col in df:
+    #    print(col, type(df[col].iloc[0]))
 
     return df
 
@@ -105,10 +104,10 @@ def read_gspread(url):
         df[col] = df[col].astype(str)
     
     # Print dataset results for the user to make sure that everything goes smoothly.
-    print(df.dtypes)
-    print(df.head(10))
-    for col in df:
-        print(col, type(df[col].iloc[0]))
+    #print(df.dtypes)
+    #print(df.head(10))
+    #for col in df:
+    #    print(col, type(df[col].iloc[0]))
 
     return df
 
@@ -123,7 +122,7 @@ def rowAppend_gspread(url, values):
     # Load gspread
     sheet = load_gspread(url)
     
-    # Get index of first non-populated recursively
+    # Get index of first non-populated row using recursion (beautiful!)
     def sheet_len(ws, index=1):
         if ws.cell(index, 1).value == '':
             return 1
@@ -140,6 +139,7 @@ def rowAppend_gspread(url, values):
         sheet.insert_row(values, index=last)
 
     return None
+
 
 
 def update_fields(df, variables, date=None):
@@ -174,6 +174,7 @@ def update_fields(df, variables, date=None):
                 else:
                     pass
 
+
         if to_update != {}:
             if date != None:
                 to_update['rp_datemodified'] = date
@@ -203,7 +204,7 @@ def get_uuids(df):
     '''
 
     # Call contacts with io function
-    contact_uuids = io(root + raw_contacts, ['urns_0', 'uuid'])
+    contact_uuids = io(root + contacts, ['urns_0', 'uuid'])
     contact_uuids = contact_uuids.rename( columns = {'urns_0': 'phone'} )
 
     df = df.merge(contact_uuids, how = 'left', on = 'phone')
@@ -241,7 +242,9 @@ def add_groups(contact_uuids, group, action = 'add'):
 
 def remove_groups(contact_uuids, group):
     '''
-        Wrapper on add_groups(). Removes contacts from specified group.
+        contact_uuids is a list of contact UUIDS to add.
+        group is a string, the name of the group.
+        Notice that RP has a 100 limit on number of contact_uuids to add to a group in each request.
     '''
 
     add_groups(contact_uuids, group, action = 'remove')
@@ -255,10 +258,21 @@ def start_run(contact_uuids, flow):
     '''
     
     # Load flows dataset
-    flows_df = io(root + raw_flows)
+    flows_df = io(root + flows)
 
     # Get flow uuid
-    flow_uuid = flows_df.loc[ (flows_df['name'] == flow), 'uuid'].values[0]
+    flow_value = flows_df.loc[ (flows_df['name'] == flow), 'uuid']
+    if len(flow_value) ==0: ##Not in the dataframe then search
+         r = requests.get('https://api.rapidpro.io/api/v1/flows.json',
+                             headers = {'Authorization': rp_api},
+                             params = {'uuid':     uuid})
+         result =  r.json()['results']
+         if not result:
+             flow_uuid = 'Missing'
+	 else :
+	     flow_uuid = result[0]['name']
+    else:
+        flow_uuid = flow_value.values[0]
     print('Flow UUID is: ' + str(flow_uuid))
 
     batch = []
