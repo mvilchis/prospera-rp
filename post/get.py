@@ -42,8 +42,8 @@ class Get(object):
         incorporating them to our master dataset.
     '''
     def __init__(self):
-	super(Get, self).__init__()
-	self.df_raw_flows = pd.read_csv(root + raw_flows)
+        super(Get, self).__init__()
+        self.df_raw_flows = pd.read_csv(root + raw_flows)
 
     def request_get(self, header = {}, parameters = {}):
         '''
