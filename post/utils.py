@@ -265,15 +265,16 @@ def start_run(contact_uuids, flow):
     if len(flow_value) ==0: ##Not in the dataframe then search
          r = requests.get('https://api.rapidpro.io/api/v1/flows.json',
                              headers = {'Authorization': rp_api},
-                             params = {'uuid':     uuid})
+                             params = {'name': flow})
          result =  r.json()['results']
          if not result:
              flow_uuid = 'Missing'
-	 else :
-	     flow_uuid = result[0]['name']
+         else :
+            flow_uuid = result[0]['name']
     else:
         flow_uuid = flow_value.values[0]
     print('Flow UUID is: ' + str(flow_uuid))
+
 
     batch = []
     while len(contact_uuids) > 100:
