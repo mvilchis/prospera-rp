@@ -53,6 +53,7 @@ def io(dbPath, subset=None):
     # Stringify and strip left and right whitespace
     for col in df:
         df[col] = df[col].astype(str)
+        #df[col] = df[col].astype('unicode')
         df[col] = df[col].str.strip()
 
     # Print dataset results for the user to make sure that everything goes smoothly.
@@ -89,7 +90,7 @@ def read_gspread(url):
         returns a pandas dataframe of the google spreadsheet specified in url.
         The spreadsheet has to be shared with the corresponding Google service account
     '''
-    
+
     # Load gspread
     sheet = load_gspread(url)
 
@@ -102,7 +103,7 @@ def read_gspread(url):
     # Stringify
     for col in df:
         df[col] = df[col].astype(str)
-    
+        #df[col] = df[col].astype('unicode')
     # Print dataset results for the user to make sure that everything goes smoothly.
     #print(df.dtypes)
     #print(df.head(10))
@@ -118,17 +119,17 @@ def rowAppend_gspread(url, values):
         Inserts values in the first row of worksheet not yet populated with data.
         Assumes that row is not populated if first column is not populated.
     '''
-    
+
     # Load gspread
     sheet = load_gspread(url)
-    
+
     # Get index of first non-populated row using recursion (beautiful!)
     def sheet_len(ws, index=1):
         if ws.cell(index, 1).value == '':
             return 1
         else:
             return sheet_len(ws, index+1) + 1
-    
+
     # Insert rows specified in values
     last = sheet_len(sheet)
     if type(values[0]) == list:
@@ -169,31 +170,30 @@ def update_fields(df, variables, date=None):
 
         elif type(variables) == list:
             for field in variables:
-                if df[field].iloc[row] != '' :
+                if df[field].iloc[row] and not pd.isnull(df[field].iloc[row]):
                     to_update[field] = df[field].iloc[row]
                 else:
                     pass
 
 
         if to_update != {}:
-            if date != None:
+            if date:
                 to_update['rp_datemodified'] = date
             else:
                 pass
-            print('--')
-            print(to_update)
-            print(df['phone'].iloc[row])
-            print('--')
-
-        # Proceed with request
-        requests.post(
+            # Proceed with request
+            response = requests.post(
             'https://api.rapidpro.io/api/v1/contacts.json',
             headers = { 'content-type': 'application/json',
                         'Authorization': rp_api },
             data = json.dumps( { 'urns': [df['phone'].iloc[row]],
                                  'fields': to_update } )
-        )
-
+            )
+            if response.ok:
+                print "Se termino de actualizar -> %s" %(df['phone'].iloc[row])
+                print "Con los campos: %s" %(to_update)
+            else:
+                print "Hubo un error al actualizar el contacto"
     return None
 
 
@@ -226,9 +226,9 @@ def add_groups(contact_uuids, group, action = 'add'):
         batch.append(contact_uuids[:100])
         contact_uuids = contact_uuids[100:]
     batch.append(contact_uuids[:])
+    print "Se agregan al grupo : %s \n%d contactos" %(group, len(contact_uuids))
 
     for l in batch:
-        print(len(l))
         requests.post(
                 'https://rapidpro.io/api/v1/contact_actions.json',
                 headers = { 'content-type': 'application/json',
@@ -256,7 +256,7 @@ def start_run(contact_uuids, flow):
     '''
         flow is a string e.g. 'miAlta_init'. It's the name of the flow to start the contact_uuids in.
     '''
-    
+
     # Load flows dataset
     flows_df = io(root + flows)
 
@@ -269,8 +269,10 @@ def start_run(contact_uuids, flow):
          result =  r.json()['results']
          if not result:
              flow_uuid = 'Missing'
+             print "Missing %s" %(flow)
          else :
             flow_uuid = result[0]['name']
+            print "No missing %s " %(flow_uuid)
     else:
         flow_uuid = flow_value.values[0]
     print('Flow UUID is: ' + str(flow_uuid))
