@@ -2,8 +2,8 @@
 
 # Set path to get module
 import sys
-#sys.path.append("/Users/Ana1/Dropbox/DropboxQFPD/pTasks/rapidpro")
-sys.path.append("/home/mvilchis/Desktop/Presidencia/Prospera/rp-pd/")
+sys.path.append("/Users/Ana1/Dropbox/DropboxQFPD/pTasks/rapidpro")
+#sys.path.append("/home/mvilchis/Desktop/Presidencia/Prospera/rp-pd/")
 
 import os
 import configparser
