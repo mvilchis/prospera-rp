@@ -65,7 +65,7 @@ def io(dbPath, subset=None):
     return df
 
 
-def load_gspread(url):
+def load_gspread(url, id_sheet=0):
     '''
         returns the first instance of class gspread.Worksheet() in spreadsheet located in url.
     '''
@@ -81,19 +81,17 @@ def load_gspread(url):
 
     # Open spreadsheet. The url leads to the dataset
     book = gc.open_by_url(url)
+    return book.get_worksheet(id_sheet)
 
-    return book.sheet1
 
-
-def read_gspread(url):
+def read_gspread(url, id_sheet=0):
     '''
         returns a pandas dataframe of the google spreadsheet specified in url.
         The spreadsheet has to be shared with the corresponding Google service account
     '''
 
     # Load gspread
-    sheet = load_gspread(url)
-
+    sheet = load_gspread(url, id_sheet)
     # Convert sheet contents to a list of dicts, then convert to pandas dataframe
     df = pd.DataFrame(sheet.get_all_records())
 
