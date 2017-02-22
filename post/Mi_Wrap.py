@@ -46,15 +46,14 @@ class HR(object):
         This class defines methods to use the utils uploading infor that would
         be uploaded with miAlta
     '''
-    def wrap_update(self, date):
+    def wrap_update(self, date, id_sheet=0):
         '''
             1) Loads gspread HR_url, 2) uses date DD/MM/YYYY to filter date and
             uploads, 3) after that performs tasks that otherwise would be done
             with miAlta
         '''
         #1
-        df = utils.read_gspread(HR_url2)
-
+        df = utils.read_gspread(HR_url2, id_sheet)
         for col in ['rp_duedate', 'rp_apptdate']:
             df.loc[df[col] == 'a punto', col] = ''
             df.loc[df[col].str.len() > 10, col] = ''
@@ -65,7 +64,7 @@ class HR(object):
 
         df = df.loc[df['date'] == date, :]
         print "*"*50
-        print "Hay %d contactos a actualizar" %(df['phone'].notnull().sum().sum())
+        print "Hay %d contactos a actualizar" %(df['phone'].count())
         print "*"*50 + "\n"
 
         #1.1
