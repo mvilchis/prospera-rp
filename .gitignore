@@ -1,5 +1,6 @@
 __pycache__/
 download/__pycache__
+
 download/*
 pRaw/*
 processed/*
@@ -8,7 +9,9 @@ post/.ipynb_checkpoints/*
 post/fixes.py
 post/getGSheet-8b845085ca3e.json
 post/gsheetIO.txt
-
+__init__.py
+post/tasks.py*
+post/tester.py
 keys.ini
 download/sample_data_runs.json
 *.swp
