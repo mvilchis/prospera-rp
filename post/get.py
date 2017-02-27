@@ -17,6 +17,7 @@ import pprint
 import sys
 from datetime import datetime
 import copy
+import time
 
 
 #configuration
@@ -35,6 +36,8 @@ raw_groups = config['paths']['raw_groups']
 rp_api = config['rapidpro']['rp_api']
 
 ITEMS_BY_PAGE = 250
+SLEEP_PAGE = 100
+SLEEP_TIME = 5
 
 class Get(object):
     '''
@@ -118,7 +121,7 @@ class Get(object):
         return pd.DataFrame.from_records(flatDicts)
 
 
-    def append_df(self, parameters = {}, pages = None):
+    def append_df(self, parameters = {}, from_page = None, to_page=None):
         '''
             Extracts all elements in multiple pages in a looping fashion,
             getting to the next page until a KeyError is raised.
@@ -128,9 +131,11 @@ class Get(object):
         '''
 
         dfList = []
-        if pages:
+        if to_page:
+            if from_page == 0:
+                from_page = 1
             params = parameters.copy()
-            for p in range(1,pages):
+            for p in range(from_page,to_page):
                 params.update({'page':p})
                 df = self.to_df(params)
                 dfList.append(df)
@@ -141,6 +146,9 @@ class Get(object):
             while True:
                 params.update({'page':p})
                 try:
+                    if p % SLEEP_PAGE == 0:
+                        print "En la pagina %d" %(p)
+                        time.sleep(SLEEP_TIME)
                     df = self.to_df(params)
                     dfList.append(df)
                     p += 1
@@ -634,9 +642,24 @@ class ExportRuns(Get):
         request  = requests.get('https://api.rapidpro.io/api/v1/runs.json',
                                         headers = {'Authorization': rp_api},
                                         params = {'page':1})
-
+        print request.json()['count']
+        """number_of_pages = (request.json()['count'] -1)/ITEMS_BY_PAGE +1
+        pages_by_request = 2
+        number_of_chunks = (number_of_pages-1)/pages_by_request +1
+        df = pd.DataFrame()
+        number_of_chunks = 2
+        for i in range(number_of_chunks):
+            from_page = i*pages_by_request
+            to_page = (i+1)*pages_by_request
+            print (from_page, to_page)
+            print "En pagina %d de %d " %(i, number_of_chunks)
+            tmp = self.append_df(parameters=parameters, from_page = from_page, to_page = to_page)
+            #tmp.to_csv(root + raw_runs + 'runs.csv%d' %(i), index=False, encoding='utf-8')
+            #df.append(tmp,ignore_index=True)
+            df = pd.concat([df,tmp])
+            time.sleep(5)
         df = self.append_df(parameters=parameters)
-        df.to_csv(root + raw_runs + 'runs.csv', index=False, encoding='utf-8')
+        df.to_csv(root + raw_runs + 'runs.csv', index=False, encoding='utf-8')"""
 
 
     def append_runs(self, parameters = {}):
