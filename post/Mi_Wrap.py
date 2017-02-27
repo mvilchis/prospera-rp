@@ -46,12 +46,13 @@ class HR(object):
         This class defines methods to use the utils uploading infor that would
         be uploaded with miAlta
     '''
-    def wrap_update(self, date, id_sheet=0):
+    def wrap_update(self, date, id_sheet=1):
         '''
             1) Loads gspread HR_url, 2) uses date DD/MM/YYYY to filter date and
             uploads, 3) after that performs tasks that otherwise would be done
             with miAlta
         '''
+        id_sheet = id_sheet -1
         #1
         df = utils.read_gspread(HR_url2, id_sheet)
         for col in ['rp_duedate', 'rp_apptdate']:
