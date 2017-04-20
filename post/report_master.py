@@ -239,11 +239,11 @@ def wrap_full(date, isUpdate=None):
         print('Out flows')
 
         # Now get those runs
-        print('In runs...')
-        runs = get.ExportRuns()
-        runs.export_runs()
+        #print('In runs...')
+        #runs = get.ExportRuns()
+        #runs.export_runs()
         # runs.append_runs()
-        print('Out runs')
+        #print('Out runs')
 
         # Now run export_contacts(date)
         print('In contacts...')

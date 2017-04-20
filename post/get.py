@@ -227,39 +227,11 @@ class GetRuns(Get):
 
         # Add all run-level information
         keys = list(run.keys())
-        ## Remove steps and values entries
-        for el in ['steps', 'values']:
-            keys.remove(el)
         for key in keys:
             run_result[key] = run[key]
 
-        # Add field 'origin' to steps and values
-        for entry in run['steps']:
-            entry['origin'] = 'steps'
-        for entry in run['values']:
-            entry['origin'] = 'values'
-
         run_result['entries'] = []
 
-        # Add all values entries with arrived_on and left_on info from steps
-        for step_values in run['values']:
-            for step_steps in run['steps']:
-                if step_steps['left_on'] == step_values['time']:
-                    for field in ['arrived_on', 'left_on']:
-                        step_values[field] = step_steps[field]
-                    run_result['entries'].append(step_values)
-                    # Remove steps entry
-                    run['steps'].remove(step_steps)
-                    break
-
-        # Add all remaining steps
-        for step_steps in run['steps']:
-            for field in [ 'category',
-                           'label',
-                           'rule_value',
-                           'time' ]:
-                step_steps[field] = None
-            run_result['entries'].append(step_steps)
 
         return run_result
 
@@ -305,7 +277,7 @@ class ProcessRuns(Get):
             i = i+1
 
         # Retrieve flow name
-        run['flow_name'] = self.name_flow(run['flow_uuid'], self.df_raw_flows)
+        run['flow_name'] = self.name_flow(run['flow'], self.df_raw_flows)
 
         return run
 
@@ -361,16 +333,7 @@ class ProcessRuns(Get):
         # Now fill in
         current = 0
 
-        while True:
-            mistakes = self.get_repetitions(run['entries'], current)
 
-            for index in [ x+current for x in range(mistakes+1) ]:
-                run['entries'][index]['mistakes'] = mistakes
-
-            current = current + mistakes + 1
-
-            if current > len(run['entries']) - 1:
-                break
 
         return run
 
@@ -511,34 +474,7 @@ class ExportRuns(Get):
         return result
 
 
-    def to_df(self, result_list):
-        '''
-            This function overrides the one in getMom.
-            It is a wrapper: gets data, processes, flattens and returns
-            a pandas df.
-        '''
-
-        # Get
-        getter = GetRuns()
-        runs = []
-        processer = ProcessRuns()
-
-        for dic in result_list:
-            run = getter.select_data(dic.serialize())
-            run = processer.tweaks(run)
-            run = processer.add_mistakes(run)
-            run = processer.run_duration(run)
-            run = processer.step_duration(run)
-            run = processer.response_type(run)
-            runs.append(run)
-
-        # Export
-        flat = []
-        for run in runs:
-            flat.extend(self.flatten_run(run))
-
-        ## Into dataframe
-        return pd.DataFrame.from_records(flat)
+    
 
 
     def export_runs(self, parameters = {}):
