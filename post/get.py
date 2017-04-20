@@ -18,7 +18,9 @@ import sys
 from datetime import datetime
 import copy
 import time
-
+############ rapidpro client ############
+from temba_client.v2 import TembaClient
+import sys
 
 #configuration
 config = configparser.ConfigParser()
@@ -35,11 +37,12 @@ raw_groups = config['paths']['raw_groups']
 ## Rapidpro
 rp_api = config['rapidpro']['rp_api']
 
-ITEMS_BY_PAGE = 250
-SLEEP_PAGE = 100
-SLEEP_TIME = 5
+PRINT_PAGE = 100
+MAX_RETRY_ALL = 10
+PARTITION_NUMBER = 100
 
 class Get(object):
+
     '''
         Encompasses all functions related to getting RapidPro messages and
         incorporating them to our master dataset.
@@ -47,12 +50,15 @@ class Get(object):
     def __init__(self):
         super(Get, self).__init__()
         self.df_raw_flows = pd.read_csv(root + raw_flows)
+        ############ rapidpro client ############d
+        # rp_api format: 'Token value', TembaClient use value
+        token = rp_api.split(' ')[1]
+        self.client_io = TembaClient('rapidpro.io',token)
 
-    def request_get(self, header = {}, parameters = {}):
+    def get_client_request(self,before=None, after = None):
         '''
             This function is to be overwritten in subclasses.
         '''
-
         raise Exception("No request form has been identified."
                         "Enter the appropriate subclass.")
 
@@ -106,22 +112,18 @@ class Get(object):
         return result
 
 
-    def to_df(self, parameters = {}):
+    def to_df(self,result_list):
         '''
             Runs a request, extracts messages and assembles them.
         '''
-
-        raw = self.request_get(parameters = parameters)
-
-        # raw should be a list of dicts. Flatten them and append to new list
         flatDicts = []
-        for dic in raw:
-            flatDicts.append(self.flatten_dict(dic))
-
+        for dic in result_list:
+            flatDicts.append(self.flatten_dict(dic.serialize()))
+        print ("Procesados %d registros"% len(result_list))
         return pd.DataFrame.from_records(flatDicts)
 
 
-    def append_df(self, parameters = {}, from_page = None, to_page=None):
+    def append_df(self, parameters = {}, partition=False):
         '''
             Extracts all elements in multiple pages in a looping fashion,
             getting to the next page until a KeyError is raised.
@@ -129,43 +131,41 @@ class Get(object):
             dfList is a list of pd.DataFrame objects.
             Returns the appended DataFrame.
         '''
+        #No we use client temba
 
         dfList = []
-        if to_page:
-            if from_page == 0:
-                from_page = 1
-            params = parameters.copy()
-            for p in range(from_page,to_page):
-                params.update({'page':p})
-                df = self.to_df(params)
-                dfList.append(df)
-        else :
-            p = 1
-            # Get list of dataframes, one dataframe per page
-            params = parameters.copy()
-            while True:
-                params.update({'page':p})
-                try:
-                    if p % SLEEP_PAGE == 0:
-                        print "En la pagina %d" %(p)
-                        time.sleep(SLEEP_TIME)
-                    df = self.to_df(params)
-                    dfList.append(df)
-                    p += 1
-                except KeyError:
-                    break
-
+        print ("Realizando request")
+        if partition and not parameters:
+            base_date =  datetime(2015, 1, 1,23, 58, 24, 268244)
+            base_date_str = str(base_date.isoformat())
+            result = self.get_client_request(before = base_date_str).all(retry_on_rate_exceed=True)
+            delta = datetime.utcnow() - base_date
+            delta = delta/PARTITION_NUMBER
+            part_time = base_date + delta
+            part_time_str = ""
+            counter = 1
+            for i in range(PARTITION_NUMBER):
+                part_time_str = str(part_time.isoformat())
+                base_date_str = str(base_date.isoformat())
+                result += self.get_client_request(before = part_time_str,
+                                                  after = base_date_str).all(retry_on_rate_exceed=True)
+                base_date = part_time
+                part_time += delta
+                if counter % 10 == 0:
+                    print ("---> Procesados %i de %i divisiones" %(counter, PARTITION_NUMBER))
+                counter += 1
+            result += self.get_client_request(after=part_date_str).all(retry_on_rate_exceed=True)
+            result_list = result
+        else:
+            result_list = self.get_client_request(parameters).all(retry_on_rate_exceed=True)
+        print ("Fin de request")
+        df = self.to_df(result_list)
         # Append dataframes in a single one
-        if len(dfList) == 0:
+        if len(df.index) == 0:
             return None
 
         else:
-            outDf = dfList[0]
-
-            if len(dfList) > 1:
-                outDf = outDf.append(dfList[1:], ignore_index=True)
-
-            return outDf
+            return df
 
     def uuid_flow(self, flow):
         '''
@@ -197,7 +197,7 @@ class Get(object):
 
         # Policy: if there are many rows, return first value
         if len(rows) ==0: ##Not in the dataframe then search
-            r = requests.get('https://api.rapidpro.io/api/v1/flows.json',
+            r = requests.get('https://api.rapidpro.io/api/v2/flows.json',
                                             headers = {'Authorization': rp_api},
                                             params = {'uuid': uuid})
             result =  r.json()['results']
@@ -214,19 +214,9 @@ class GetRuns(Get):
         Inherited Class that deals with runs get requests.
     '''
 
-
-    def request_get(self, parameters = {}):
-        '''
-            runs get request on RapidPro's API with the appropriate authentication commands.
-            param is a dict of query parameters to be specified.
-        '''
-
-        r = requests.get('https://api.rapidpro.io/api/v1/runs.json',
-                                        headers = {'Authorization': rp_api},
-                                        params = parameters)
-        return r.json()['results']
-
-
+    ############ rapidpro client ############
+    def get_client_request(self,before = None, after = None):
+        return self.client_io.get_runs(before = before, after = after)
 
     def select_data(self, run):
         '''
@@ -274,17 +264,6 @@ class GetRuns(Get):
         return run_result
 
 
-    def select_data_test(self):
-        pp = pprint.PrettyPrinter()
-        inst = GetRuns()
-        json = inst.request_get()[:20]
-        pp.pprint(json)
-        print("--------------------------------------------------------------------------------")
-        for run in json:
-            pp.pprint(inst.select_data(run))
-
-
-
 
 class ProcessRuns(Get):
     '''
@@ -330,15 +309,6 @@ class ProcessRuns(Get):
 
         return run
 
-
-    def tweaks_test(self):
-        getter = GetRuns()
-        pp = pprint.PrettyPrinter()
-        json = getter.request_get()[:20]
-        pp.pprint(json)
-        print("--------------------------------------------------------------------------------")
-        for run in json:
-            pp.pprint(self.tweaks(getter.select_data(run)))
 
 
     def get_repetitions(self, steps, index):
@@ -405,16 +375,6 @@ class ProcessRuns(Get):
         return run
 
 
-    def add_mistakes_test(self):
-        getter = GetRuns()
-        pp = pprint.PrettyPrinter()
-        json = getter.request_get()[:20]
-        pp.pprint(json)
-        print("--------------------------------------------------------------------------------")
-        for run in json:
-            pp.pprint(self.add_mistakes(self.tweaks(getter.select_data(run))))
-
-
     def get_etime(self, run, index=-1):
         try:
             etime = run['entries'][index]['left_on'][:19]
@@ -449,16 +409,6 @@ class ProcessRuns(Get):
         return run
 
 
-    def run_duration_test(self):
-        getter = GetRuns()
-        pp = pprint.PrettyPrinter()
-        json = getter.request_get()[:20]
-        pp.pprint(json)
-        print("--------------------------------------------------------------------------------")
-        for run in json:
-            pp.pprint(self.run_duration(self.add_mistakes(self.tweaks(getter.select_data(run)))))
-
-
     def step_duration(self, run):
         '''
             Adds the total seconds elapsed between the start and end of
@@ -480,16 +430,6 @@ class ProcessRuns(Get):
                 step['step_time'] = finish_time.total_seconds()
 
         return run
-
-
-    def step_duration_test(self):
-        getter = GetRuns()
-        pp = pprint.PrettyPrinter()
-        json = getter.request_get()[:20]
-        pp.pprint(json)
-        print("--------------------------------------------------------------------------------")
-        for run in json:
-            pp.pprint(self.step_duration(self.run_duration(self.add_mistakes(self.tweaks(getter.select_data(run))))))
 
 
     def response_type(self, run):
@@ -524,15 +464,6 @@ class ProcessRuns(Get):
         return run
 
 
-    def response_type_test(self):
-        getter = GetRuns()
-        pp = pprint.PrettyPrinter()
-        json = getter.request_get()[:20]
-        pp.pprint(json)
-        print("--------------------------------------------------------------------------------")
-        for run in json:
-            pp.pprint(self.response_type(self.step_duration(self.run_duration(self.add_mistakes(self.tweaks(getter.select_data(run)))))))
-
 
 
 
@@ -540,6 +471,11 @@ class ExportRuns(Get):
     '''
         Inherited class that exports runs get requests to .csv
     '''
+    ############ rapidpro client ############
+    def get_client_request(self,before = None, after = None):
+
+        return self.client_io.get_runs(before = before, after=after)
+
 
     def flatten_run(self, run):
         '''
@@ -575,18 +511,7 @@ class ExportRuns(Get):
         return result
 
 
-    def flatten_run_test(self):
-        getter = GetRuns()
-        processer = ProcessRuns()
-        pp = pprint.PrettyPrinter()
-        json = getter.request_get()[:20]
-        pp.pprint(json)
-        print("--------------------------------------------------------------------------------")
-        for run in json:
-            pp.pprint(self.flatten_run(processer.response_type(processer.step_duration(processer.run_duration(processer.add_mistakes(processer.tweaks(getter.select_data(run))))))))
-
-
-    def to_df(self, parameters = {}):
+    def to_df(self, result_list):
         '''
             This function overrides the one in getMom.
             It is a wrapper: gets data, processes, flattens and returns
@@ -595,12 +520,11 @@ class ExportRuns(Get):
 
         # Get
         getter = GetRuns()
-        runs_raw = getter.request_get(parameters = parameters)
         runs = []
         processer = ProcessRuns()
 
-        for i in range(len(runs_raw)):
-            run = getter.select_data(runs_raw[i])
+        for dic in result_list:
+            run = getter.select_data(dic.serialize())
             run = processer.tweaks(run)
             run = processer.add_mistakes(run)
             run = processer.run_duration(run)
@@ -617,19 +541,6 @@ class ExportRuns(Get):
         return pd.DataFrame.from_records(flat)
 
 
-    def to_df_test(self):
-        getter = GetRuns()
-        processer = ProcessRuns()
-        pp = pprint.PrettyPrinter()
-        json = getter.request_get()[:20]
-        pp.pprint(json)
-        print("--------------------------------------------------------------------------------")
-        df = self.to_df()
-        for col in df:
-            print(df[col])
-        df.to_csv('/home/qfd/test.csv', index=False)
-
-
     def export_runs(self, parameters = {}):
         '''
             (i)downloads the contacts,
@@ -639,10 +550,7 @@ class ExportRuns(Get):
                 cannot handle
             (v)saves DataFrame to a .csv
         '''
-        request  = requests.get('https://api.rapidpro.io/api/v1/runs.json',
-                                        headers = {'Authorization': rp_api},
-                                        params = {'page':1})
-        df = self.append_df(parameters=parameters)
+        df = self.append_df(parameters=parameters, partition=True)
         df.to_csv(root + raw_runs + 'runs.csv', index=False, encoding='utf-8')
 
 
@@ -717,17 +625,10 @@ class GetContacts(Get):
         Inherited Class that deals with contacts get requests.
     '''
 
+    ############ rapidpro client ############
+    def get_client_request(self,before = None, after = None):
+        return self.client_io.get_contacts(before = before, after = after)
 
-    def request_get(self, parameters = {}):
-        '''
-            runs get request on RapidPro's API with the appropriate authentication commands.
-            param is a dict of query parameters to be specified.
-        '''
-
-        r = requests.get('https://api.rapidpro.io/api/v1/contacts.json',
-                                                    headers = {'Authorization': rp_api},
-                                                    params = parameters)
-        return r.json()['results']
 
 
     def export_contacts(self, parameters={}, path=root + raw_contacts):
@@ -752,17 +653,9 @@ class GetFields(Get):
         Inherited Class that deals with contact fields get requests.
     '''
 
-
-    def request_get(self, parameters = {}):
-        '''
-            runs get request on RapidPro's API with the appropriate authentication commands.
-            param is a dict of query parameters to be specified.
-        '''
-
-        r = requests.get('https://api.rapidpro.io/api/v1/fields.json',
-                                                    headers = {'Authorization': rp_api},
-                                                    params = parameters)
-        return r.json()['results']
+    ############ rapidpro client ############
+    def get_client_request(self, parameters = {}):
+        return self.client_io.get_fields(parameters)
 
 
     def export_fields(self, parameters={}):
@@ -784,18 +677,9 @@ class GetFlows(Get):
         Inherited Class that deals with flows get requests.
     '''
 
-
-    def request_get(self, parameters = {}):
-        '''
-            runs get request on RapidPro's API with the appropriate authentication commands.
-            param is a dict of query parameters to be specified.
-        '''
-
-        r = requests.get('https://api.rapidpro.io/api/v1/flows.json',
-                                                    headers = {'Authorization': rp_api},
-                                                    params = parameters)
-        return r.json()['results']
-
+    ############ rapidpro client ############
+    def get_client_request(self, parameters = {}):
+        return self.client_io.get_flows(parameters)
 
     def export_flows(self, parameters = {}):
         '''
@@ -816,18 +700,9 @@ class GetGroups(Get):
         Inherited Class that deals with groups get requests.
     '''
 
-
-    def request_get(self, parameters = {}):
-        '''
-            runs get request on RapidPro's API with the appropriate authentication commands.
-            param is a dict of query parameters to be specified.
-        '''
-
-        r = requests.get('https://api.rapidpro.io/api/v1/groups.json',
-                                                    headers = {'Authorization': rp_api},
-                                                    params = parameters)
-        return r.json()['results']
-
+    ############ rapidpro client ############
+    def get_client_request(self, parameters = {}):
+        return self.client_io.get_groups(parameters)
 
     def export_groups(self, parameters={}):
         '''
@@ -848,31 +723,23 @@ class GetMessages(Get):
         Inherited Class that deals with messages get requests.
     '''
 
-
-    def request_get(self, parameters = {}):
-        '''
-            runs get request on RapidPro's API with the appropriate authentication commands.
-            param is a dict of query parameters to be specified.
-        '''
-
-        r = requests.get('https://api.rapidpro.io/api/v1/messages.json',
-                                                    headers = {'Authorization': rp_api},
-                                                    params = parameters)
-        return r.json()['results']
+    ############ rapidpro client ############
+    def get_client_request(self,before = None, after = None):
+        return self.client_io.get_messages(before = before, after = after)
 
 
-    def to_df(self, parameters = {}):
+    def to_df(self, result_list):
         '''
             Runs a request, extracts messages and assembles them.
         '''
 
-        raw = self.request_get(parameters = parameters)
 
         # raw should be a list of dicts. Flatten them and append to new list
         flatDicts = []
-        for dic in raw:
+        for item in result_list:
+            dic = item.serialize()
             for char in ['"', "'", ";", ",", '\u2013', '\u2026', '\r\n']:
-                        dic['text'] = dic['text'].replace(char, '')
+                dic['text'] = dic['text'].replace(char, '')
             flatDicts.append(self.flatten_dict(dic))
 
         return pd.DataFrame.from_records(flatDicts)
