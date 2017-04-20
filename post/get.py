@@ -154,7 +154,7 @@ class Get(object):
                 if counter % 10 == 0:
                     print ("---> Procesados %i de %i divisiones" %(counter, PARTITION_NUMBER))
                 counter += 1
-            result += self.get_client_request(after=part_date_str).all(retry_on_rate_exceed=True)
+            result += self.get_client_request(after=part_time_str).all(retry_on_rate_exceed=True)
             result_list = result
         else:
             result_list = self.get_client_request(parameters).all(retry_on_rate_exceed=True)
