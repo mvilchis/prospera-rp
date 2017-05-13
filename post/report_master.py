@@ -18,7 +18,7 @@ import get
 #user= "/Users/Ana1/Dropbox/DropboxQFPD"
 #user = "c: /users/francisco del villar/Dropbox (qfpd)/"
 #user = "D:/Dropbox/DropboxQFPD"
-user = "/home/mvilchis/Desktop/Presidencia/Prospera/rp-pd/"
+user = "/home/mvilchis/Desktop/Presidencia/rp-pd/"
 download = user + "/pTasks/rapidpro/repo/download/"
 runs_process = user + "/pProcessed/rapidpro/runs/runs_20160419.do"
 runs_processR = user + "/pProcessed/rapidpro/runs/runs_20160504.R"
@@ -112,7 +112,7 @@ def export_missContacts(date):
     # Get contacts dataset (only vars listed above + phone + contact uuid)
     os.chdir(utilities)
     import utils
-    df = utils.io( contacts_process + 'contacts.csv', 
+    df = utils.io( contacts_process + 'contacts.csv',
                    [ 'fields_rp_name',
                      'fields_rp_prosperapal',
                      'fields_rp_ispregnant',
@@ -132,12 +132,12 @@ def export_missContacts(date):
     # Keep observations s.t. has_duedate == 0 or has_apptdate == 0
     df = df.loc[ (df['has_duedate'] == '0') |
                  (df['has_apptdate'] == '0') , : ]
-    
+
     # Get today and next day in %Y-%m-%d format
     date_given = dt.datetime.strptime(date, '%d/%m/%Y').strftime('%Y-%m-%d')
     date_next = dt.datetime.strptime(date, '%d/%m/%Y') + dt.timedelta(days=1)
     date_next = date_next.strftime('%Y-%m-%d')
-    
+
     # Keep contacts that were created during this special date
     df['in_date'] = ( (df['contact_created_on'] > date_given + 'T06:00:00.000Z') &
                       (df['contact_created_on'] < date_next + 'T06:00:00.000Z') )
@@ -145,7 +145,7 @@ def export_missContacts(date):
 
     # Keep observations with phone
     df = df.loc[df['phone'] != '', :]
-    
+
     # Keep relevant columns
     df = df.loc[ :, ['fields_rp_name',
                      'fields_rp_prosperapal',
@@ -167,12 +167,12 @@ def export_missContacts(date):
     data = []
     for row in range(len(df.index)):
         data.append(list(df.iloc[row]))
-    
+
     print(data)
     # Write on spreadsheet
     os.chdir(utilities)
     import utils
-    utils.rowAppend_gspread('https://docs.google.com/spreadsheets/d/1AdjVn9QoEDh4xb5Mgvt_wzgFCOTzmydqV06_01VvHzI/edit#gid=0', data) 
+    utils.rowAppend_gspread('https://docs.google.com/spreadsheets/d/1AdjVn9QoEDh4xb5Mgvt_wzgFCOTzmydqV06_01VvHzI/edit#gid=0', data)
 
     # Go back to initial directory
     os.chdir(os.path.dirname(__file__))
@@ -233,23 +233,23 @@ def wrap_full(date, isUpdate=None):
         #os.chdir(download)
 
         # Import flows
-        print('In flows...')
-        flows = get.GetFlows()
-        flows.export_flows()
+        #print('In flows...')
+        #flows = get.GetFlows()
+        #flows.export_flows()
         print('Out flows')
 
         # Now get those runs
-        #print('In runs...')
-        #runs = get.ExportRuns()
-        #runs.export_runs()
-        # runs.append_runs()
-        #print('Out runs')
+        print('In runs...')
+        runs = get.ExportRuns()
+        runs.export_runs()
+        #runs.append_runs()
+        print('Out runs')
 
         # Now run export_contacts(date)
-        print('In contacts...')
-        contacts = get.GetContacts()
-        contacts.export_contacts()
-        print('Out contacts')
+        #print('In contacts...')
+        #contacts = get.GetContacts()
+        #contacts.export_contacts()
+        #print('Out contacts')
     else:
         print('Data already updated proceed with data manipulation')
 

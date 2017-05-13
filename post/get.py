@@ -39,7 +39,7 @@ rp_api = config['rapidpro']['rp_api']
 
 PRINT_PAGE = 100
 MAX_RETRY_ALL = 10
-PARTITION_NUMBER = 1000
+PARTITION_NUMBER = 1100
 
 class Get(object):
 
@@ -156,15 +156,19 @@ class Get(object):
             #    counter += 1
             part_time = (datetime.utcnow()-delta).isoformat()
             part_time_str = str(part_time)
-            print part_time_str
-            result = self.get_client_request(after=part_time_str).all(retry_on_rate_exceed=True)
+            #result = self.get_client_request(after=part_time_str).all(retry_on_rate_exceed=True)
+            result = []
+            result.append(self.client_io.get_runs(id="437793353").first())
+            result.append(self.client_io.get_runs(id="447366845").first())
+
             result_list = result
         else:
             result_list = self.get_client_request(parameters).all(retry_on_rate_exceed=True)
-        print ("Fin de request")
+
         df = self.to_df(result_list)
         # Append dataframes in a single one
         if len(df.index) == 0:
+            print "No lleva nada df"
             return None
 
         else:
@@ -200,11 +204,15 @@ class GetFlowDefinition():
             #We have to ask for the definition of flow
             definition = self.client_io.get_definitions(flows=uuid)
             if definition.flows:
+                #Add all flows of metadata info#
+                for flow in definition.flows:
+                    self.flow_dict[flow['metadata']['uuid']] = flow
                 #If flow uuid exist
-                self.flow_dict[uuid] = definition.flows[0]
-                return self.flow_dict[uuid]
-            else:
-                return None
+                if uuid in self.flow_dict:
+                    return self.flow_dict[uuid]
+
+            print "No se encontro el flujo= %s" % uuid
+            return None
 
 
 class GetRuns(Get):
@@ -236,13 +244,21 @@ class GetRuns(Get):
         run_result['entries'] = []
         #Create dic of values base on node id
         value_nodes = {}
+        mistake_nodes = {}
         for key in run['values']:
             value_entry = run['values'][key]
             value_nodes[value_entry['node']] = value_entry
             value_nodes[value_entry['node']]['label'] = key
+            mistake_nodes[value_entry['node']] = 0
 
         flow_def = flow_manager.search_flow(run['flow']['uuid'])
         path_nodes = set([path['node'] for path in run['path']])
+
+        #Check mistakes
+        for idx in range(len(run['path'])-2):
+            if run['path'][idx]['node'] in mistake_nodes:
+                if run['path'][idx]['node'] == run['path'][idx+2]['node']:
+                    mistake_nodes[run['path'][idx]['node']] += 1
         # Add field 'origin' to steps and values
         for node in path_nodes:
             entry = {}
@@ -250,35 +266,30 @@ class GetRuns(Get):
             if node in value_nodes.keys():
                 entry = value_nodes[node]
                 entry['origin'] = 'values'
+                entry['type'] = None
+                entry['mistakes'] = mistake_nodes[node]
                 run_result['entries'].append(entry)
-
             else:
+                print "PATH NODE"
                 action_def =[act['actions'] for act in flow_def['action_sets'] if act['uuid']== node]
+                print action_def
+                if not action_def:
+                    print "Nodo %s no encontrado en %s %s" %(node, run['flow']['uuid'], run['flow']['name'])
+                    print flow_def['action_sets']
                 if action_def: #We are not working with ruleset
+                    entry = sorted([path for path in run['path']if path["node"]== node],
+                                                key =lambda x : x['time'])[0]
                     action_def = action_def[0][0]
                     entry['origin'] = 'steps'
                     entry['category'] = None
-                    entry['time'] = [path["time"]for path in run['path']if path["node"]== node] [0]
+                    entry['label'] = 0
+                    entry['mistakes'] = 0
                     if "msg" in action_def:
                         entry['text'] = action_def['msg']['spa']
                     entry['type'] = action_def['type']
                     entry['value'] = None
                     run_result['entries'].append(entry)
-
-
         return run_result
-
-    def test_select_data(self):
-        flow_manager = GetFlowDefinition(self.client_io)
-        runs = self.client_io.get_runs(id="447366845").all()
-        run= runs[0].serialize()
-
-        print "---------- TEST ---------------"
-        print self.select_data(run, flow_manager)
-        print "---------FIN TEST--------------"
-
-
-
 
 
 class ProcessRuns(Get):
@@ -302,7 +313,8 @@ class ProcessRuns(Get):
 
         # Remove ugly chars
         for step in run['entries']:
-            step['value'] = step['value'].replace('\n', '').replace(u'\u23CE','')
+            if type(step['value']) == str:
+                step['value'] = step['value'].replace('\n', '').replace(u'\u23CE','')
 
         # Sort steps chronologically
         run['entries'] = sorted(run['entries'],
@@ -315,117 +327,7 @@ class ProcessRuns(Get):
             i = i+1
 
         # Retrieve flow name
-        run['flow_name'] = run['flow']['name']
         return run
-
-
-    def test_tweaks(self):
-
-        runs = self.client_io.get_runs(id="447366845").all()
-        run= runs[0].serialize()
-        runs= GetRuns()
-        print "---------- TEST ---------------"
-        run =  runs.select_data(run, flow_manager)
-        print self.tweaks(run)
-        print "---------FIN TEST--------------"
-
-
-    def get_repetitions(self, steps, index):
-        '''
-            Computes the number of repeated nodes that appear side by side in a
-            chronologically sorted list of steps.
-            index is an int, the starting point to start counting.
-        '''
-
-        result = 0
-        tracker = index
-
-        try:
-            while steps[tracker]['node'] == steps[tracker+1]['node']:
-                result += 1
-                tracker += 1
-
-        except IndexError:
-            return len(steps[index: ]) - 1
-
-        return result
-
-
-    def get_repetitions_test(self):
-        steps1 = [{'node': 12}, {'node': 12}, {'node': 3213}, {'node': 3123123},
-                  {'node': 414}]
-        steps2 = [{'node': 1234}, {'node': 534}, {'node': 534}, {'node': 534}, {'node':
-                                                                               1}]
-        steps3 = [{'node': 1}, {'node': 1}, {'node': 1}, {'node': 1}, {'node': 1}]
-        steps4 = [{'node': 52}, {'node': 42}, {'node': 123}, {'node': 123}, {'node': 123}]
-        for steps in [steps1, steps2, steps3, steps4]:
-            print("----------------------------------------------------------------------------------------------------")
-            print(self.get_repetitions(steps, 0))
-            print("------------------","------------------","------------------")
-            print(self.get_repetitions(steps, 2))
-            print("------------------","------------------","------------------")
-            print(self.get_repetitions(steps, -1))
-
-
-    def add_mistakes(self, run):
-        '''
-            Adds number of mistakes (i.e. repetition of contiguous nodes in a
-            chronologically ordered sequence of steps minus 1).
-        '''
-
-        # Start by adding mistakes key to all run
-        for step in run['entries']:
-            step['mistakes'] = 0
-
-        # Now fill in
-        current = 0
-
-        while True:
-            mistakes = self.get_repetitions(run['entries'], current)
-
-            for index in [ x+current for x in range(mistakes+1) ]:
-                run['entries'][index]['mistakes'] = mistakes
-
-            current = current + mistakes + 1
-
-            if current > len(run['entries']) - 1:
-                break
-
-        return run
-
-
-    def response_type(self, run):
-        '''
-            extracts the response type from 'label'
-            Response types:
-                - Yes/No -------- s
-                - Categorical --- c
-                - Datetime ------ f
-                - Numerical ----- n
-                - Text ---------- t
-        '''
-
-        for step in run['entries']:
-
-            step['response_type'] = None
-
-            flag = 1
-            suffixes = ['_s', '_c', '_f', '_n', '_t']
-
-            if step['label'] == None:
-                pass
-            else:
-                for suf in suffixes:
-                    if step['label'][-2:] == suf:
-                        rType = suf[-1]
-                        step['response_type'] = rType
-                        break
-                    else:
-                        pass
-
-        return run
-
-
 
 
 
@@ -439,49 +341,38 @@ class ExportRuns(Get):
         return self.client_io.get_runs(before = before, after=after)
 
 
-    def flatten_run(self, run):
+    def add_common_key_entry(self, run, entry_dict, common_keys):
+        primitive = (basestring, bool,int, long, float, complex)
+        for key in common_keys:
+            #Entries was added in last step
+            if type(run[key]) is dict:
+                for key2 in run[key].keys():
+                    entry_dict[key+'_'+key2] = run[key][key2]
+            elif isinstance(run[key], primitive):
+                entry_dict[key] = run[key]
+            else:
+                raise Exception("Error in flatten_run:"
+                        " try to add a %s into dataframe" % type(run[key]))
+        return entry_dict
+
+    def flatten_runs(self, runs):
         '''
             Returns a list whose entries represent steps.
             Also, it flattens the category, within 'steps_fdv'
         '''
+        dic_entries = []
+        common_keys = [u'exited_on', u'flow', u'responded', u'created_on', u'contact', u'modified_on', u'id', u'exit_type']
 
-        result = []
-
-        # Flatten 'category' if it is assigned a dict
-        for step in run['entries']:
-            if type(step['category']) == dict:
-                for key in step['category'].keys():
-                    step['category'+'_'+key] = step['category'][key]
-                del step['category']
-            else:
-                step['category_base'] = step.pop('category')
-                step['category_spa'] = None
-
-        # Create list of dictionaries at the step level
-        run_level = copy.deepcopy(run)
-        del run_level['entries']
-
-        if len(run['entries']) > 0:
-            for step in run['entries']:
-                step.update(run_level)
-                result.append(step)
-
-        # No 'entries' imply no type 'R' step --> append_step function
-        else:
-            pass
-
-        return result
+        for run in runs:
+            for entry in run['entries']:
+                dic_entries.append(self.add_common_key_entry(run, entry, common_keys))
+            if not run['entries']:
+                dic_entries.append(self.add_common_key_entry(run, {}, common_keys ))
 
 
-    def flatten_run_test(self):
-        getter = GetRuns()
-        processer = ProcessRuns()
-        pp = pprint.PrettyPrinter()
-        json = getter.request_get()[:20]
-        pp.pprint(json)
-        print("--------------------------------------------------------------------------------")
-        for run in json:
-            pp.pprint(self.flatten_run(processer.response_type(processer.step_duration(processer.run_duration(processer.add_mistakes(processer.tweaks(getter.select_data(run))))))))
+        print dic_entries
+        entries_df = pd.DataFrame(dic_entries)
+        return entries_df
 
 
     def to_df(self, result_list):
@@ -490,9 +381,7 @@ class ExportRuns(Get):
             It is a wrapper: gets data, processes, flattens and returns
             a pandas df.
         '''
-
         # Get
-
         getter = GetRuns()
         flow_manager = GetFlowDefinition(self.client_io)
         processer = ProcessRuns()
@@ -500,31 +389,23 @@ class ExportRuns(Get):
         runs = []
         for dic in result_list:
             raw_runs.append(dic.serialize())
-        for i in range(len(raw_runs)):
-            run = getter.select_data(raw_runs[i],flow_manager)
+        for raw_run in raw_runs:
+            run = getter.select_data(raw_run,flow_manager)
             run = processer.tweaks(run)
             runs.append(run)
         # Export
-        flat = []
-        for run in runs:
-            flat.extend(self.flatten_run(run))
+        print runs
+        return self.flatten_runs(runs)
 
-        ## Into dataframe
-        return pd.DataFrame.from_records(flat)
 
 
     def export_runs(self, parameters = {}):
         '''
-            (i)downloads the contacts,
-            (ii)flattens and assembles the dictionaries,
-            (iii)sends data to DataFrame
-            (iv)removes a useless contact field (with varname so long that STATA
-                cannot handle
-            (v)saves DataFrame to a .csv
+            (i)downloads all runs in paritions ,
+            (ii)divide between values an runs and select relevant data,
+            (iii)Sort by nodes by time
+            (iv)saves DataFrame to a .csv
         '''
-        request  = requests.get('https://api.rapidpro.io/api/v1/runs.json',
-                                        headers = {'Authorization': rp_api},
-                                        params = {'page':1})
         df = self.append_df(parameters=parameters, partition=True)
         df.to_csv(root + raw_runs + 'runs.csv', index=False, encoding='utf-8')
 
@@ -537,17 +418,17 @@ class ExportRuns(Get):
 
         # Get date of last run
         df = pd.read_csv(root + raw_runs + 'runs.csv', dtype='unicode')
-        df = df.sort_values('modified_on', na_position='first')
-        last_date = df['modified_on'].iloc[-1]
+        df = df.sort_values('time', na_position='first')
+        last_date = df['time'].iloc[-1]
 
         # Get observations after this date
         new_df = self.append_df({'after':last_date})
-        new_df = new_df.sort_values('modified_on')
+        new_df = new_df.sort_values('time')
 
         # Blow first run (rapidpro's 'after' is inclusive)
         try:
             index = 0
-            while new_df['modified_on'].iloc[index] == last_date:
+            while new_df['time'].iloc[index] == last_date:
                 index += 1
             new_df = new_df.iloc[index:]
         except IndexError:
