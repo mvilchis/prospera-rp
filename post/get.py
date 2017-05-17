@@ -157,9 +157,11 @@ class Get(object):
             part_time = (datetime.utcnow()-delta).isoformat()
             part_time_str = str(part_time)
             #result = self.get_client_request(after=part_time_str).all(retry_on_rate_exceed=True)
-            result = []
-            result.append(self.client_io.get_runs(id="437793353").first())
-            result.append(self.client_io.get_runs(id="447366845").first())
+            
+            ################# Test
+            #result = []
+            #result.append(self.client_io.get_runs(id="234147688").first())
+            #result.append(self.client_io.get_runs(id="436708170").first())
 
             result_list = result
         else:
@@ -270,9 +272,7 @@ class GetRuns(Get):
                 entry['mistakes'] = mistake_nodes[node]
                 run_result['entries'].append(entry)
             else:
-                print "PATH NODE"
                 action_def =[act['actions'] for act in flow_def['action_sets'] if act['uuid']== node]
-                print action_def
                 if not action_def:
                     print "Nodo %s no encontrado en %s %s" %(node, run['flow']['uuid'], run['flow']['name'])
                     print flow_def['action_sets']
@@ -580,8 +580,9 @@ class GetMessages(Get):
     '''
 
     ############ rapidpro client ############
-    def get_client_request(self,before = None, after = None):
-        return self.client_io.get_messages(before = before, after = after)
+    def get_client_request(self, parameters = {}):
+        print parameters
+        return self.client_io.get_messages(**parameters)
 
 
     def to_df(self, result_list):

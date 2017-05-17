@@ -244,7 +244,11 @@ def wrap_full(date, isUpdate=None):
         runs.export_runs()
         #runs.append_runs()
         print('Out runs')
-
+        # Now get those messages
+        messages = get.GetMessages()
+        messages.export_messages({'folder':'inbox'})
+        
+        #print('Out contacts')
         # Now run export_contacts(date)
         #print('In contacts...')
         #contacts = get.GetContacts()
