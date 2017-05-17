@@ -156,8 +156,8 @@ class Get(object):
             #    counter += 1
             part_time = (datetime.utcnow()-delta).isoformat()
             part_time_str = str(part_time)
-            #result = self.get_client_request(after=part_time_str).all(retry_on_rate_exceed=True)
-            
+            result = self.get_client_request(after=part_time_str).all(retry_on_rate_exceed=True)
+
             ################# Test
             #result = []
             #result.append(self.client_io.get_runs(id="234147688").first())
@@ -273,9 +273,6 @@ class GetRuns(Get):
                 run_result['entries'].append(entry)
             else:
                 action_def =[act['actions'] for act in flow_def['action_sets'] if act['uuid']== node]
-                if not action_def:
-                    print "Nodo %s no encontrado en %s %s" %(node, run['flow']['uuid'], run['flow']['name'])
-                    print flow_def['action_sets']
                 if action_def: #We are not working with ruleset
                     entry = sorted([path for path in run['path']if path["node"]== node],
                                                 key =lambda x : x['time'])[0]
@@ -285,7 +282,10 @@ class GetRuns(Get):
                     entry['label'] = 0
                     entry['mistakes'] = 0
                     if "msg" in action_def:
-                        entry['text'] = action_def['msg']['spa']
+                        if 'spa' in action_def['msg']:
+                            entry['text'] = action_def['msg']['spa']
+                        else:
+                            entry['text'] = action_def['msg']
                     entry['type'] = action_def['type']
                     entry['value'] = None
                     run_result['entries'].append(entry)
@@ -351,8 +351,7 @@ class ExportRuns(Get):
             elif isinstance(run[key], primitive):
                 entry_dict[key] = run[key]
             else:
-                raise Exception("Error in flatten_run:"
-                        " try to add a %s into dataframe" % type(run[key]))
+                pass
         return entry_dict
 
     def flatten_runs(self, runs):
@@ -370,7 +369,6 @@ class ExportRuns(Get):
                 dic_entries.append(self.add_common_key_entry(run, {}, common_keys ))
 
 
-        print dic_entries
         entries_df = pd.DataFrame(dic_entries)
         return entries_df
 
@@ -394,7 +392,6 @@ class ExportRuns(Get):
             run = processer.tweaks(run)
             runs.append(run)
         # Export
-        print runs
         return self.flatten_runs(runs)
 
 
@@ -581,7 +578,6 @@ class GetMessages(Get):
 
     ############ rapidpro client ############
     def get_client_request(self, parameters = {}):
-        print parameters
         return self.client_io.get_messages(**parameters)
 
 
