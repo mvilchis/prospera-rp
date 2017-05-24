@@ -233,9 +233,9 @@ def wrap_full(date, isUpdate=None):
         #os.chdir(download)
 
         # Import flows
-        #print('In flows...')
-        #flows = get.GetFlows()
-        #flows.export_flows()
+        print('In flows...')
+        flows = get.GetFlows()
+        flows.export_flows()
         print('Out flows')
 
         # Now get those runs
@@ -245,15 +245,16 @@ def wrap_full(date, isUpdate=None):
         #runs.append_runs()
         print('Out runs')
         # Now get those messages
+        print('In external messages')
         messages = get.GetMessages()
         messages.export_messages({'folder':'inbox'})
-        
-        #print('Out contacts')
+        print('Out external messages')
+
         # Now run export_contacts(date)
-        #print('In contacts...')
-        #contacts = get.GetContacts()
-        #contacts.export_contacts()
-        #print('Out contacts')
+        print('In contacts...')
+        contacts = get.GetContacts()
+        contacts.export_contacts()
+        print('Out contacts')
     else:
         print('Data already updated proceed with data manipulation')
 

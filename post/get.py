@@ -39,7 +39,7 @@ rp_api = config['rapidpro']['rp_api']
 
 PRINT_PAGE = 100
 MAX_RETRY_ALL = 10
-PARTITION_NUMBER = 1100
+PARTITION_NUMBER = 1500
 
 class Get(object):
 
@@ -49,7 +49,11 @@ class Get(object):
     '''
     def __init__(self):
         super(Get, self).__init__()
-        self.df_raw_flows = pd.read_csv(root + raw_flows)
+        #We dont need all flows updates in this moment
+        try:
+            self.df_raw_flows = pd.read_csv(root + raw_flows)
+        except Exception:
+            pass
         ############ rapidpro client ############d
         # rp_api format: 'Token value', TembaClient use value
         token = rp_api.split(' ')[1]
@@ -138,31 +142,28 @@ class Get(object):
         if partition and not parameters:
             base_date =  datetime(2015, 1, 1,23, 58, 24, 268244)
             base_date_str = str(base_date.isoformat())
-            #result = self.get_client_request(before = base_date_str).all(retry_on_rate_exceed=True)
+            result = self.get_client_request(before = base_date_str).all(retry_on_rate_exceed=True)
             delta = datetime.utcnow() - base_date
             delta = delta/PARTITION_NUMBER
             part_time = base_date + delta
             part_time_str = ""
             counter = 1
-            #for i in range(PARTITION_NUMBER):
-            #    part_time_str = str(part_time.isoformat())
-            #    base_date_str = str(base_date.isoformat())
-            #    result += self.get_client_request(before = part_time_str,
-            #                                      after = base_date_str).all(retry_on_rate_exceed=True)
-            #    base_date = part_time
-            #    part_time += delta
-            #    if counter % 10 == 0:
-            #        print ("---> Procesados %i de %i divisiones" %(counter, PARTITION_NUMBER))
-            #    counter += 1
-            part_time = (datetime.utcnow()-delta).isoformat()
-            part_time_str = str(part_time)
-            result = self.get_client_request(after=part_time_str).all(retry_on_rate_exceed=True)
+            for i in range(PARTITION_NUMBER):
+                part_time_str = str(part_time.isoformat())
+                base_date_str = str(base_date.isoformat())
+                result += self.get_client_request(before = part_time_str,
+                                                  after = base_date_str).all(retry_on_rate_exceed=True)
+                base_date = part_time
+                part_time += delta
+                if counter % 10 == 0:
+                    print ("---> Procesados %i de %i divisiones" %(counter, PARTITION_NUMBER))
+                counter += 1
+            result += self.get_client_request(after=part_time_str).all(retry_on_rate_exceed=True)
 
             ################# Test
             #result = []
             #result.append(self.client_io.get_runs(id="234147688").first())
             #result.append(self.client_io.get_runs(id="436708170").first())
-
             result_list = result
         else:
             result_list = self.get_client_request(parameters).all(retry_on_rate_exceed=True)
@@ -214,7 +215,7 @@ class GetFlowDefinition():
                     return self.flow_dict[uuid]
 
             print "No se encontro el flujo= %s" % uuid
-            return None
+            return 'Missing'
 
 
 class GetRuns(Get):
