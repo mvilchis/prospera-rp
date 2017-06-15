@@ -232,18 +232,17 @@ def wrap_full(date, isUpdate=None):
         # Import get.py, instantiate ExportRuns and run export_runs(date)
         #os.chdir(download)
 
-        # Import flows
-        print('In flows...')
-        flows = get.GetFlows()
-        flows.export_flows()
-        print('Out flows')
-
         # Now get those runs
         print('In runs...')
         runs = get.ExportRuns()
         runs.export_runs()
         #runs.append_runs()
         print('Out runs')
+        # Import flows
+        print('In flows...')
+        flows = get.GetFlows()
+        flows.export_flows()
+        print('Out flows')
         # Now get those messages
         print('In external messages')
         messages = get.GetMessages()

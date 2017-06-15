@@ -19,8 +19,12 @@ from datetime import datetime
 import copy
 import time
 ############ rapidpro client ############
+import dateutil.parser
+from io import StringIO
+import os.path
 from temba_client.v2 import TembaClient
 import sys
+import tailer
 
 #configuration
 config = configparser.ConfigParser()
@@ -39,7 +43,7 @@ rp_api = config['rapidpro']['rp_api']
 
 PRINT_PAGE = 100
 MAX_RETRY_ALL = 10
-PARTITION_NUMBER = 1500
+PARTITION_NUMBER = 1000
 
 class Get(object):
 
@@ -138,40 +142,17 @@ class Get(object):
         #No we use client temba
 
         dfList = []
-        print ("Realizando request")
-        if partition and not parameters:
-            base_date =  datetime(2015, 1, 1,23, 58, 24, 268244)
-            base_date_str = str(base_date.isoformat())
-            result = self.get_client_request(before = base_date_str).all(retry_on_rate_exceed=True)
-            delta = datetime.utcnow() - base_date
-            delta = delta/PARTITION_NUMBER
-            part_time = base_date + delta
-            part_time_str = ""
-            counter = 1
-            for i in range(PARTITION_NUMBER):
-                part_time_str = str(part_time.isoformat())
-                base_date_str = str(base_date.isoformat())
-                result += self.get_client_request(before = part_time_str,
-                                                  after = base_date_str).all(retry_on_rate_exceed=True)
-                base_date = part_time
-                part_time += delta
-                if counter % 10 == 0:
-                    print ("---> Procesados %i de %i divisiones" %(counter, PARTITION_NUMBER))
-                counter += 1
-            result += self.get_client_request(after=part_time_str).all(retry_on_rate_exceed=True)
-
-            ################# Test
-            #result = []
-            #result.append(self.client_io.get_runs(id="234147688").first())
-            #result.append(self.client_io.get_runs(id="436708170").first())
-            result_list = result
+        if "before" in  parameters or "after" in parameters:
+            before = parameters['before'] if "before" in parameters else ""
+            after = parameters['after'] if "after" in parameters else ""
+            print "after=%s&before=%s" %(after,before)
+            result_list = self.get_client_request(before =before, after = after).all(retry_on_rate_exceed=True)
         else:
             result_list = self.get_client_request(parameters).all(retry_on_rate_exceed=True)
 
         df = self.to_df(result_list)
         # Append dataframes in a single one
         if len(df.index) == 0:
-            print "No lleva nada df"
             return None
 
         else:
@@ -214,8 +195,7 @@ class GetFlowDefinition():
                 if uuid in self.flow_dict:
                     return self.flow_dict[uuid]
 
-            print "No se encontro el flujo= %s" % uuid
-            return 'Missing'
+            return {}
 
 
 class GetRuns(Get):
@@ -273,22 +253,28 @@ class GetRuns(Get):
                 entry['mistakes'] = mistake_nodes[node]
                 run_result['entries'].append(entry)
             else:
-                action_def =[act['actions'] for act in flow_def['action_sets'] if act['uuid']== node]
-                if action_def: #We are not working with ruleset
-                    entry = sorted([path for path in run['path']if path["node"]== node],
-                                                key =lambda x : x['time'])[0]
-                    action_def = action_def[0][0]
-                    entry['origin'] = 'steps'
-                    entry['category'] = None
-                    entry['label'] = 0
-                    entry['mistakes'] = 0
-                    if "msg" in action_def:
-                        if 'spa' in action_def['msg']:
-                            entry['text'] = action_def['msg']['spa']
-                        else:
-                            entry['text'] = action_def['msg']
-                    entry['type'] = action_def['type']
-                    entry['value'] = None
+                entry = sorted([path for path in run['path']if path["node"]== node],
+                key =lambda x : x['time'])[0]
+                entry['origin'] = 'steps'
+                entry['category'] = None
+                entry['label'] = 0
+                entry['mistakes'] = 0
+                entry['value'] = None
+
+                if not flow_def:
+                    entry['text'] = "unknown flow"
+                    entry['type'] = "unknown flow"
+                else:
+                    action_def =[act['actions'] for act in flow_def['action_sets'] if act['uuid']== node]
+                    if action_def: #We are not working with ruleset
+                        action_def = action_def[0][0]
+                        if "msg" in action_def:
+                            if 'spa' in action_def['msg']:
+                                #Spanish messages have different config
+                                entry['text'] = action_def['msg']['spa']
+                            else:
+                                entry['text'] = action_def['msg']
+                        entry['type'] = action_def['type']
                     run_result['entries'].append(entry)
         return run_result
 
@@ -336,6 +322,10 @@ class ExportRuns(Get):
     '''
         Inherited class that exports runs get requests to .csv
     '''
+    def __init__(self):
+        super(ExportRuns, self).__init__()
+        self.flow_manager = GetFlowDefinition(self.client_io)
+
     ############ rapidpro client ############
     def get_client_request(self,before = None, after = None):
 
@@ -382,20 +372,23 @@ class ExportRuns(Get):
         '''
         # Get
         getter = GetRuns()
-        flow_manager = GetFlowDefinition(self.client_io)
         processer = ProcessRuns()
         raw_runs = []
         runs = []
         for dic in result_list:
             raw_runs.append(dic.serialize())
         for raw_run in raw_runs:
-            run = getter.select_data(raw_run,flow_manager)
+            run = getter.select_data(raw_run,self.flow_manager)
             run = processer.tweaks(run)
             runs.append(run)
         # Export
         return self.flatten_runs(runs)
 
-
+    def append_to_csv(self, df, header="False"):
+        file_run = root + raw_runs + 'runs.csv'
+        if not df is None:
+            with open(file_run, 'a') as f:
+                df.to_csv(f, header=header,index=False, encoding='utf-8')
 
     def export_runs(self, parameters = {}):
         '''
@@ -404,8 +397,46 @@ class ExportRuns(Get):
             (iii)Sort by nodes by time
             (iv)saves DataFrame to a .csv
         '''
-        df = self.append_df(parameters=parameters, partition=True)
-        df.to_csv(root + raw_runs + 'runs.csv', index=False, encoding='utf-8')
+        if parameters:
+            df = self.append_df(parameters=parameters, partition=True)
+            df.to_csv(root + raw_runs + 'runs.csv', index=False, encoding='utf-8')
+        else:
+            #Divide flow by date
+            #Check history to obtain last processed
+
+            file_run = root + raw_runs + 'runs.csv'
+            if (os.path.isfile(file_run)):
+                tail_file = tailer.tail(open(file_run), 1)[0]
+                df_tmp = pd.read_csv(StringIO(tail_file.decode('utf-8')),header=None)
+                base_date_str = df_tmp[11][0]
+                base_date =dateutil.parser.parse(base_date_str).replace(tzinfo=None)
+
+            else :
+                #First partition, unknown size
+                base_date =  datetime(2015, 5, 1,23, 58, 24, 268244)
+                base_date_str = str(base_date.isoformat())
+                parameters = {'before': base_date_str}
+                df = self.append_df(parameters=parameters, partition=True)
+                self.append_to_csv(df, header =True)
+            delta = datetime.utcnow() - base_date
+            delta = delta/PARTITION_NUMBER
+            delta_time = base_date + delta
+            delta_time_str = ""
+
+            for counter in range(PARTITION_NUMBER):
+                delta_time_str = str(delta_time.isoformat())
+                base_date_str = str(base_date.isoformat())
+                parameters = {'after': base_date_str, 'before': delta_time_str}
+                df = self.append_df(parameters=parameters, partition=True)
+                self.append_to_csv(df, header =False)
+                base_date = delta_time
+                delta_time += delta
+                if counter % 10 == 0:
+                    print ("---> Procesados %i de %i divisiones" %(counter+1, PARTITION_NUMBER))
+                counter += 1
+            parameters = {'after': delta_time_str}
+            df = self.append_df(parameters=parameters, partition=True)
+            self.append_to_csv(df, header =False)
 
 
     def append_runs(self, parameters = {}):
