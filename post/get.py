@@ -146,7 +146,7 @@ class Get(object):
         if "before" in  parameters or "after" in parameters:
             before = parameters['before'] if "before" in parameters else ""
             after = parameters['after'] if "after" in parameters else ""
-            print "after=%s&before=%s" %(after,before)
+            print ("after=%s&before=%s" %(after,before))
             result_list = self.get_client_request(before =before, after = after).all(retry_on_rate_exceed=True)
         else:
             result_list = self.get_client_request(parameters).all(retry_on_rate_exceed=True)
@@ -335,7 +335,7 @@ class ExportRuns(Get):
 
 
     def add_common_key_entry(self, run, entry_dict, common_keys):
-        primitive = (string_types, bool,int, long, float, complex)
+        primitive = (string_types, bool,int, float, complex)
         for key in common_keys:
             #Entries was added in last step
             if type(run[key]) is dict:
@@ -409,7 +409,7 @@ class ExportRuns(Get):
             file_run = root + raw_runs + 'runs.csv'
             if (os.path.isfile(file_run)):
                 tail_file = tailer.tail(open(file_run), 1)[0]
-                df_tmp = pd.read_csv(StringIO(tail_file.decode('utf-8')),header=None)
+                df_tmp = pd.read_csv(StringIO(tail_file),header=None)
                 base_date_str = df_tmp[11][0]
                 base_date =dateutil.parser.parse(base_date_str).replace(tzinfo=None)
 
