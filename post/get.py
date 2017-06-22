@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-
+# coding=utf-8
 '''
 This module sets the foundation for all get requests executed via
 RapidPro's Application Programming Interface.
@@ -390,7 +389,7 @@ class ExportRuns(Get):
         file_run = root + raw_runs + 'runs.csv'
         if not df is None:
             with open(file_run, 'a') as f:
-                df.to_csv(f, header=header,index=False, encoding='utf-8')
+                df.to_csv(f, header=header,index=False, encoding='iso-8859-1')
 
     def export_runs(self, parameters = {}):
         '''
@@ -401,7 +400,7 @@ class ExportRuns(Get):
         '''
         if parameters:
             df = self.append_df(parameters=parameters, partition=True)
-            df.to_csv(root + raw_runs + 'runs.csv', index=False, encoding='utf-8')
+            df.to_csv(root + raw_runs + 'runs.csv', index=False, encoding='iso-8859-1')
         else:
             #Divide flow by date
             #Check history to obtain last processed
@@ -470,7 +469,7 @@ class ExportRuns(Get):
         df = df.append(new_df, ignore_index=True)
 
         # Export
-        df.to_csv(root + raw_runs + 'runs.csv', index=False, encoding='utf-8')
+        df.to_csv(root + raw_runs + 'runs.csv', index=False, encoding='iso-8859-1')
 
         # Check things went well
         #size = len(new_df.index)
