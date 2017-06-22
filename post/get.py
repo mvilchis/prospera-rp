@@ -25,6 +25,7 @@ import os.path
 from temba_client.v2 import TembaClient
 import sys
 import tailer
+from six import string_types
 
 #configuration
 config = configparser.ConfigParser()
@@ -186,7 +187,7 @@ class GetFlowDefinition():
             return self.flow_dict[uuid]
         else:
             #We have to ask for the definition of flow
-            definition = self.client_io.get_definitions(flows=uuid)
+            definition = self.client_io.get_definitions(flows=uuid, dependencies='none')
             if definition.flows:
                 #Add all flows of metadata info#
                 for flow in definition.flows:
@@ -194,7 +195,8 @@ class GetFlowDefinition():
                 #If flow uuid exist
                 if uuid in self.flow_dict:
                     return self.flow_dict[uuid]
-
+            else :
+                self.flow_dict[uuid] = {}
             return {}
 
 
@@ -243,6 +245,7 @@ class GetRuns(Get):
                 if run['path'][idx]['node'] == run['path'][idx+2]['node']:
                     mistake_nodes[run['path'][idx]['node']] += 1
         # Add field 'origin' to steps and values
+
         for node in path_nodes:
             entry = {}
             #Now, check if entry exist in values
@@ -260,7 +263,6 @@ class GetRuns(Get):
                 entry['label'] = 0
                 entry['mistakes'] = 0
                 entry['value'] = None
-
                 if not flow_def:
                     entry['text'] = "unknown flow"
                     entry['type'] = "unknown flow"
@@ -333,7 +335,7 @@ class ExportRuns(Get):
 
 
     def add_common_key_entry(self, run, entry_dict, common_keys):
-        primitive = (basestring, bool,int, long, float, complex)
+        primitive = (string_types, bool,int, long, float, complex)
         for key in common_keys:
             #Entries was added in last step
             if type(run[key]) is dict:
