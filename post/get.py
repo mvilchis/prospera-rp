@@ -298,12 +298,16 @@ class ProcessRuns(Get):
                 Add chronological numbering to every step in 'steps_fdv'
                 Add flow name to run-level data
         '''
-
+        #f = lambda obj: str(obj).encode(enc, errors='backslashreplace').decode(enc)
         # Remove ugly chars
         for step in run['entries']:
             if type(step['value']) == str:
+                print ("Entro")
                 step['value'] = step['value'].replace('\n', '').replace(u'\u23CE','').replace(u'\u262d','')
-
+                print (step['value'])
+            elif isinstance(step['value'], (str, type(None))):
+                step['value'] = ''
+            print (type(step["value"]))
         # Sort steps chronologically
         run['entries'] = sorted(run['entries'],
                                   key= lambda x: x['time'])
@@ -408,7 +412,7 @@ class ExportRuns(Get):
             file_run = root + raw_runs + 'runs.csv'
             if (os.path.isfile(file_run)):
                 tail_file = tailer.tail(open(file_run), 1)[0]
-                df_tmp = pd.read_csv(StringIO(tail_file.decode('utf-8')),header=None) 
+                df_tmp = pd.read_csv(StringIO(tail_file),header=None) 
                 base_date_str = df_tmp[11][0]
                 base_date =dateutil.parser.parse(base_date_str).replace(tzinfo=None)
 
