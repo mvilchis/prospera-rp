@@ -302,8 +302,7 @@ class ProcessRuns(Get):
         # Remove ugly chars
         for step in run['entries']:
             if type(step['value']) == str:
-                print ("Entro")
-                step['value'] = step['value'].replace('\n', '').replace(u'\u23CE','').replace(u'\u262d','')
+                step['value'] = str(step['value'].encode(sys.stdout.encoding, errors='replace'))
                 print (step['value'])
             elif isinstance(step['value'], (str, type(None))):
                 step['value'] = ''
