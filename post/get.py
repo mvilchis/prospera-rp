@@ -14,7 +14,7 @@ import pandas as pd
 from operator import itemgetter
 import pprint
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 import copy
 import time
 ############ rapidpro client ############
@@ -302,7 +302,7 @@ class ProcessRuns(Get):
         # Remove ugly chars
         for step in run['entries']:
             if type(step['value']) == str:
-                step['value'] = step['value'].replace('\n', '').replace(u'\u23CE','')
+                step['value'] = step['value'].replace('\n', '').replace(u'\u23CE','').replace(u'\u262d','')
 
         # Sort steps chronologically
         run['entries'] = sorted(run['entries'],
@@ -389,7 +389,7 @@ class ExportRuns(Get):
         file_run = root + raw_runs + 'runs.csv'
         if not df is None:
             with open(file_run, 'a') as f:
-                df.to_csv(f, header=header,index=False, encoding='iso-8859-1')
+                df.to_csv(f, header=header,index=False, encoding='utf-8')
 
     def export_runs(self, parameters = {}):
         '''
@@ -400,7 +400,7 @@ class ExportRuns(Get):
         '''
         if parameters:
             df = self.append_df(parameters=parameters, partition=True)
-            df.to_csv(root + raw_runs + 'runs.csv', index=False, encoding='iso-8859-1')
+            df.to_csv(root + raw_runs + 'runs.csv', index=False, encoding='utf-8')
         else:
             #Divide flow by date
             #Check history to obtain last processed
@@ -408,7 +408,7 @@ class ExportRuns(Get):
             file_run = root + raw_runs + 'runs.csv'
             if (os.path.isfile(file_run)):
                 tail_file = tailer.tail(open(file_run), 1)[0]
-                df_tmp = pd.read_csv(StringIO(tail_file),header=None)
+                df_tmp = pd.read_csv(StringIO(tail_file.decode('utf-8')),header=None) 
                 base_date_str = df_tmp[11][0]
                 base_date =dateutil.parser.parse(base_date_str).replace(tzinfo=None)
 
@@ -419,8 +419,11 @@ class ExportRuns(Get):
                 parameters = {'before': base_date_str}
                 df = self.append_df(parameters=parameters, partition=True)
                 self.append_to_csv(df, header =True)
-            delta = datetime.utcnow() - base_date
-            delta = delta/PARTITION_NUMBER
+            global PARTITION_NUMBER
+            PARTITION_NUMBER = datetime.utcnow() - base_date
+            PARTITION_NUMBER = PARTITION_NUMBER.days
+            #delta = delta delta
+            delta = timedelta(days=1)
             delta_time = base_date + delta
             delta_time_str = ""
 
@@ -469,7 +472,7 @@ class ExportRuns(Get):
         df = df.append(new_df, ignore_index=True)
 
         # Export
-        df.to_csv(root + raw_runs + 'runs.csv', index=False, encoding='iso-8859-1')
+        df.to_csv(root + raw_runs + 'runs.csv', index=False, encoding='utf-8')
 
         # Check things went well
         #size = len(new_df.index)
