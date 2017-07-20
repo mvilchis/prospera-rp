@@ -389,7 +389,7 @@ class ExportRuns(Get):
         file_run = root + raw_runs + 'runs.csv'
         if not df is None:
             with open(file_run, 'a') as f:
-                df.replace({'"':'', "'":'', ";":'', ",":'', '\u2013':'', '\u2026':'', '\r\n': '',u'\u23CE':'',u'\u262d':''}, regex=True)
+                df.replace({'"':'', "'":'', ";":'', ",":'', '\u2013':'', '\u2026':'', '\r\n': '',u'\u23CE':'',u'☭':''}, regex=True)
                 df.to_csv(f, header=header,index=False, encoding='utf-8')
 
     def export_runs(self, parameters = {}):
