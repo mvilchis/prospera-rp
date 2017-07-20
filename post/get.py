@@ -390,7 +390,13 @@ class ExportRuns(Get):
         if not df is None:
             with open(file_run, 'a') as f:
                 df.replace({'"':'', "'":'', ";":'', ",":'', '\u2013':'', '\u2026':'', '\r\n': '',u'\u23CE':'',u'☭':''}, regex=True)
-                df.to_csv(f, header=header,index=False, encoding='utf-8')
+                try:
+                    df.to_csv(f, header=header,index=False, encoding='utf-8')
+                except UnicodeEncodeError:
+                    df.fillna(value="", inplace=True)
+                    for column in df:
+                        df[column] = df[column].apply(lambda x: ''.join([" " if ord(i) < 32 or ord(i) > 126 else i for i in str(x)])) 
+                    df.to_csv(f, header=header,index=False, encoding='utf-8')
 
     def export_runs(self, parameters = {}):
         '''
