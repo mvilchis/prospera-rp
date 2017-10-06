@@ -247,6 +247,9 @@ def wrap_full(date, isUpdate=None):
         print('In external messages')
         messages = get.GetMessages()
         messages.export_messages({'folder':'inbox'})
+        messages.export_messages()
+        failed_messages = get.GetFailedMessages()
+        failed_messages.export_messages()
         print('Out external messages')
 
         # Now run export_contacts(date)

@@ -36,6 +36,7 @@ raw_flows = config['paths']['raw_flows']
 raw_runs = config['paths']['raw_runs']
 raw_contacts = config['paths']['raw_contacts']
 raw_messages = config['paths']['raw_messages']
+raw_failed_messages = config['paths']['raw_failed_messages']
 raw_fields = config['paths']['raw_fields']
 raw_groups = config['paths']['raw_groups']
 ## Rapidpro
@@ -209,7 +210,7 @@ class GetRuns(Get):
 
     ############ rapidpro client ############
     def get_client_request(self,before = None, after = None):
-        return self.client_io.get_runs(before = before, after = after)
+        return self.client_io.get_runs(before = before, after = after,responded=false)
 
     def select_data(self, run, flow_manager):
         '''
@@ -395,7 +396,7 @@ class ExportRuns(Get):
                 except UnicodeEncodeError:
                     df.fillna(value="", inplace=True)
                     for column in df:
-                        df[column] = df[column].apply(lambda x: ''.join([" " if ord(i) < 32 or ord(i) > 126 else i for i in str(x)])) 
+                        df[column] = df[column].apply(lambda x: ''.join([" " if ord(i) < 32 or ord(i) > 126 else i for i in str(x)]))
                     df.to_csv(f, header=header,index=False, encoding='utf-8')
 
     def export_runs(self, parameters = {}):
@@ -415,7 +416,7 @@ class ExportRuns(Get):
             file_run = root + raw_runs + 'runs.csv'
             if (os.path.isfile(file_run)):
                 tail_file = tailer.tail(open(file_run), 1)[0]
-                df_tmp = pd.read_csv(StringIO(tail_file),header=None) 
+                df_tmp = pd.read_csv(StringIO(tail_file),header=None)
                 base_date_str = df_tmp[11][0]
                 base_date =dateutil.parser.parse(base_date_str).replace(tzinfo=None)
 
@@ -651,3 +652,50 @@ class GetMessages(Get):
 
         df = self.append_df(parameters)
         df.to_csv(root + raw_messages, encoding='utf-8', index = False)
+
+class GetFailedMessages(Get):
+
+    def __init__(self):
+        self.MSG_URL="https://app.rapidpro.io/api/v2/messages.json"
+        self.token = rp_api.split(' ')[1]
+        self.client_io = TembaClient('rapidpro.io',self.token)
+
+    def get_failed_msgs_by_contact(self, contact):
+        token = 'token %s' % self.token
+        url= self.MSG_URL + "?contact="+str(contact)+"&status=failed"
+        headers = {'content-type': 'application/json', 'Authorization': token}
+        r = requests.get(url, headers = headers)
+        return [f for f in r.json()['results'] if f['status'] in ['failed','errored']]
+
+    def get_contact_by_group(self, group):
+        print("----- Comenzando a descargar de los contactos del grupo ", group,"----")
+        contacts = self.client_io.get_contacts(group=group).all(retry_on_rate_exceed=True)
+        print("----                Finalizo la descarga del grupo               -----")
+        return [c.serialize()['uuid']for c in contacts]
+
+    def to_df(self, result_list):
+        '''
+            Runs a request, extracts messages and assembles them.
+        '''
+        # raw should be a list of dicts. Flatten them and append to new list
+        flatDicts = []
+        for item in result_list:
+            dic = item
+            for char in ['"', "'", ";", ",", '\u2013', '\u2026', '\r\n']:
+                dic['text'] = dic['text'].replace(char, '')
+            flatDicts.append(self.flatten_dict(dic))
+
+        return pd.DataFrame.from_records(flatDicts)
+
+    def export_messages(self):
+        group_process = [ "PUERPERIUM","PREGNANT","ALTOPD","Muerte","AUXVO","SE-T Pregnancy","SE-T Baby","SE-C Pregnancy","SE-C Baby"]
+        all_contacts = []
+        for group in group_process:
+            all_contacts += self.get_contact_by_group(group)
+        all_failed_msgs = []
+        for c in list(set(all_contacts)):
+            all_failed_msgs += self.get_failed_msgs_by_contact(c)
+            break;
+        all_failed_msgs
+        df = self.to_df(all_failed_msgs)
+        df.to_csv(root + raw_failed_messages, encoding='utf-8', index = False)
