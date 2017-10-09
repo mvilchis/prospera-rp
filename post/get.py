@@ -695,7 +695,6 @@ class GetFailedMessages(Get):
         all_failed_msgs = []
         for c in list(set(all_contacts)):
             all_failed_msgs += self.get_failed_msgs_by_contact(c)
-            break;
         all_failed_msgs
         df = self.to_df(all_failed_msgs)
         df.to_csv(root + raw_failed_messages, encoding='utf-8', index = False)
