@@ -693,8 +693,13 @@ class GetFailedMessages(Get):
         for group in group_process:
             all_contacts += self.get_contact_by_group(group)
         all_failed_msgs = []
+        counter = 0
+        total = len(list(set(all_contacts)))
         for c in list(set(all_contacts)):
+            if (counter %100 == 1):
+                print ("De %d contactos %d procesados"% (total,counter))
             all_failed_msgs += self.get_failed_msgs_by_contact(c)
+            counter
         all_failed_msgs
         df = self.to_df(all_failed_msgs)
         df.to_csv(root + raw_failed_messages, encoding='utf-8', index = False)
