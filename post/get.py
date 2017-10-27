@@ -180,17 +180,28 @@ class Get(object):
 class GetFlowDefinition():
     def __init__(self, client_io):
         self.flow_dict = {}
+        self.DEFINITION="https://app.rapidpro.io/api/v2/definitions.json"
+        self.token = rp_api.split(' ')[1]
+
         self.client_io = client_io
+
+    def get_definition_flow(self, flow):
+        token = 'token %s' % self.token
+        url= self.DEFINITION + "?flow="+str(flow)+"&dependencies=none"
+        headers = {'content-type': 'application/json', 'Authorization': token}
+        r = requests.get(url, headers = headers)
+        return r.json()
 
     def search_flow(self, uuid):
         if uuid in self.flow_dict.keys():
             return self.flow_dict[uuid]
         else:
             #We have to ask for the definition of flow
-            definition = self.client_io.get_definitions(flows=uuid, dependencies='none')
-            if definition.flows:
+            definition = self.get_definition_flow(uuid)
+            #definition = self.client_io.get_definitions(flows=uuid, dependencies='none')
+            if definition["flows"]:
                 #Add all flows of metadata info#
-                for flow in definition.flows:
+                for flow in definition["flows"]:
                     self.flow_dict[flow['metadata']['uuid']] = flow
                 #If flow uuid exist
                 if uuid in self.flow_dict:
