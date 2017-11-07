@@ -426,8 +426,10 @@ class ExportRuns(Get):
 
             file_run = root + raw_runs + 'runs.csv'
             if (os.path.isfile(file_run)):
-                tail_file = tailer.tail(open(file_run), 1)[0]
-                df_tmp = pd.read_csv(StringIO(tail_file),header=None)
+                tail_file = tailer.tail(open(file_run), 1)
+                #Try to obtain the correct index
+
+                df_tmp = pd.read_csv(StringIO(max(tail_file, key=len)),header=None)
                 base_date_str = df_tmp[11][0]
                 base_date =dateutil.parser.parse(base_date_str).replace(tzinfo=None)
 
